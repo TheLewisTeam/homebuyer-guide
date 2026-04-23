@@ -405,15 +405,15 @@ function Welcome({ onStart }) {
               </label>
               <div className="grid grid-cols-1 gap-2">
                 {(form.type === 'buyer' ? [
-                  { v: 'exploring', l: 'Just exploring — curious about the process' },
-                  { v: 'preapproval', l: 'Ready to get pre-approved' },
-                  { v: 'shopping', l: 'Already shopping — touring homes' },
-                  { v: 'offer', l: 'Making offers / under contract' },
+                  { v: 'thinking', l: 'Just thinking about it' },
+                  { v: 'planning', l: 'Planning to buy in the next 6–12 months' },
+                  { v: 'ready', l: 'Ready to buy — need an agent' },
+                  { v: 'lender', l: 'Working with a lender now' },
                 ] : [
-                  { v: 'curious', l: "Curious what my home is worth" },
-                  { v: 'prepping', l: 'Getting ready to list soon' },
-                  { v: 'listed', l: 'My home is already listed' },
-                  { v: 'contract', l: 'Under contract — finalizing the sale' },
+                  { v: 'curious', l: 'Curious what my home is worth' },
+                  { v: 'planning', l: 'Planning to sell in the next 6–12 months' },
+                  { v: 'ready', l: 'Ready to sell — need an agent' },
+                  { v: 'prepping', l: 'Getting my home ready to list' },
                 ]).map(opt => (
                   <button key={opt.v}
                     onClick={() => setForm({ ...form, stage: opt.v })}
