@@ -1714,7 +1714,7 @@ function Welcome({ onStart, onShare }) {
           </div>
           <div className="text-right">
             <p className="text-[10px] uppercase tracking-wider opacity-60">Central Florida</p>
-            <p className="text-[11px] opacity-90">15 cities \u00b7 Polk County</p>
+            <p className="text-[11px] opacity-90">15 cities &middot; Polk County</p>
           </div>
         </div>
 
@@ -3348,7 +3348,7 @@ function InvestTab({ steps, completed, toggle, openStep, setOpenStep, onContact 
           <li className="flex gap-2"><Star size={14} style={{ color: C.gold, marginTop: 2 }} /> We underwrite deals to the dollar before presenting them</li>
           <li className="flex gap-2"><Star size={14} style={{ color: C.gold, marginTop: 2 }} /> DSCR, non-QM, and private money lender network</li>
           <li className="flex gap-2"><Star size={14} style={{ color: C.gold, marginTop: 2 }} /> Relationships with wholesalers + off-market operators</li>
-          <li className="flex gap-2"><Star size={14} style={{ color: C.gold, marginTop: 2 }} /> Polk County market specialists \u2014 fastest-growing corridor in FL</li>
+          <li className="flex gap-2"><Star size={14} style={{ color: C.gold, marginTop: 2 }} /> Polk County market specialists &mdash; fastest-growing corridor in FL</li>
           <li className="flex gap-2"><Star size={14} style={{ color: C.gold, marginTop: 2 }} /> We'll tell you when to walk. No commissions over judgment.</li>
         </ul>
       </div>
