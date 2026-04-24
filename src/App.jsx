@@ -1131,15 +1131,23 @@ async function pushEmailSubmission(subject, fields) {
    ========================================================= */
 const CLOUD_CFG_KEY = 'lt_cloud_cfg';
 
+// Default Supabase config — wired to Lancey's project so CRM + admin content
+// syncs to cloud out of the box. Admin can override in Admin → Data → Cloud Sync.
+const DEFAULT_CLOUD_CFG = {
+  url: 'https://gpnbzwjummzqdmbdpyoe.supabase.co',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdwbmJ6d2p1bW16cWRtYmRweW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY2NjMyNTMsImV4cCI6MjA5MjIzOTI1M30.hOEvpTcoEQs_HSHQ97RqA2W3u_6o1e3znTmmIbtox80',
+};
+
 function getCloudCfg() {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === 'undefined') return DEFAULT_CLOUD_CFG;
   try {
     const raw = window.localStorage.getItem(CLOUD_CFG_KEY);
-    if (!raw) return null;
-    const cfg = JSON.parse(raw);
-    if (!cfg.url || !cfg.anonKey) return null;
-    return cfg;
-  } catch { return null; }
+    if (raw) {
+      const cfg = JSON.parse(raw);
+      if (cfg.url && cfg.anonKey) return cfg;
+    }
+  } catch {}
+  return DEFAULT_CLOUD_CFG;
 }
 function setCloudCfg(cfg) {
   try { window.localStorage.setItem(CLOUD_CFG_KEY, JSON.stringify(cfg || {})); } catch {}
@@ -7106,6 +7114,8 @@ function CloudSyncPanel({ all, setAll, flash }) {
   const statusLabel = status === 'connected' ? 'Connected' :
                       status === 'error' ? 'Connection error' : 'Not connected';
 
+  const isDefault = !window.localStorage.getItem(CLOUD_CFG_KEY);
+
   return (
     <div className="rounded-lg p-4 mb-3"
          style={{ backgroundColor: C.paper, border: `2px solid ${C.gold}` }}>
@@ -7117,12 +7127,25 @@ function CloudSyncPanel({ all, setAll, flash }) {
         </p>
         <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full"
               style={{ backgroundColor: statusColor, color: C.cream }}>
-          {statusLabel}
+          {statusLabel}{isDefault && status === 'connected' ? ' · default' : ''}
         </span>
       </div>
       <p className="text-xs mb-3" style={{ color: C.muted }}>
-        Syncs every admin edit to Supabase. Stacy, your website, and all your devices see the same data. Public visitors see the latest content instantly.
+        {isDefault
+          ? 'Cloud sync is live on The Lewis Team\u2019s built-in Supabase project. Every edit automatically pushes to cloud so Stacy + every device see the same data. To use your own project instead, paste a different URL + key below.'
+          : 'Using your custom Supabase project. Every edit syncs to cloud.'}
       </p>
+
+      {isDefault && (
+        <div className="rounded-md p-3 mb-3 flex items-start gap-2"
+             style={{ backgroundColor: 'rgba(74,124,89,0.12)', border: `1px solid ${C.success}` }}>
+          <CheckCircle2 size={14} style={{ color: C.success, marginTop: 1, flexShrink: 0 }} />
+          <p className="text-xs" style={{ color: C.charcoal }}>
+            <strong>Cloud is active.</strong> Tap <em>"Push local \u2192 cloud"</em> once to upload
+            everything currently on this device. Then every future edit syncs automatically.
+          </p>
+        </div>
+      )}
 
       <AdminInput label="Supabase Project URL" value={url}
                   onChange={setUrl}
