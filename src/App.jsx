@@ -1204,6 +1204,9 @@ const ADMIN_PIN = '0428';
 
 // Resolve an icon — accepts a React component ref (function OR forwardRef object from lucide)
 // OR a string name (for cloud-synced data where JSON stripped the function).
+// JSON.stringify drops Symbol values, so a lucide forwardRef stored in Supabase comes back as
+// a plain object like {"displayName":"Key"} — $$typeof is gone, React rejects it.
+// Guard: only pass through objects that still carry $$typeof (live component refs).
 function resolveIcon(maybeIcon, fallback) {
   if (maybeIcon == null) return fallback || Clipboard;
   // Strings need map lookup (cloud data)
@@ -1221,8 +1224,12 @@ function resolveIcon(maybeIcon, fallback) {
     };
     return map[maybeIcon] || fallback || Clipboard;
   }
-  // Component (function, forwardRef object, memoized, etc.) — pass through
-  return maybeIcon;
+  // Function components pass through directly.
+  if (typeof maybeIcon === 'function') return maybeIcon;
+  // forwardRef / memo objects carry $$typeof (a Symbol) — JSON.stringify drops Symbols,
+  // so a deserialized icon shell won't have it and should fall back instead.
+  if (maybeIcon.$$typeof) return maybeIcon;
+  return fallback || Clipboard;
 }
 
 // Haptic feedback — works on Android, silent on iOS Safari (no vibrate API)
