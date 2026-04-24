@@ -753,6 +753,7 @@ const CRM_STAGES = [
 
 const CRM_SOURCES = [
   { id: 'client_portal', label: 'Client Portal \u2728' },
+  { id: 'mls_import', label: 'MLS Matrix import' },
   { id: 'app_contact', label: 'App contact form' },
   { id: 'app_valuation', label: 'Home valuation request' },
   { id: 'app_showing', label: 'Showing request' },
@@ -781,6 +782,68 @@ const CRM_TYPES = [
   { id: 'follower', label: 'Follower / Audience' },
   { id: 'other', label: 'Other' },
 ];
+
+/* =========================================================
+   MATRIX IMPORT — 25 contacts from Lancey's MLS Matrix CSV.
+   One-tap import via Admin → CRM → "Import Matrix" button.
+   ========================================================= */
+const MATRIX_CONTACTS = [
+  { name: 'Dawn',                 phone: '',            email: 'jacbutrfl@aol.com' },
+  { name: 'Clarke',               phone: '1-786-794-3524', email: 'Grevilclarke@gmail.com' },
+  { name: "D'Anthony Adamson",    phone: '386-916-1584', email: 'adamsom.etc@gmail.com' },
+  { name: 'Amy Almonte',          phone: '646-255-4628', email: 'a.almonte214@gmail.com' },
+  { name: 'Mark Baez',            phone: '786-734-1619', email: 'mikebaez33@gmail.com' },
+  { name: 'Lindsey Bennette',     phone: '',            email: 'lindse432@aol.com' },
+  { name: 'Melinda Berrien',      phone: '',            email: 'melindaberrien@gmail.com' },
+  { name: 'Jeannetee Breeveld',   phone: '',            email: 'ornurse@live.nl' },
+  { name: 'Tameka Carwise',       phone: '',            email: 'lotuspsamls23@gmail.com' },
+  { name: 'Tameka Carwise',       phone: '',            email: 'lotuspsalms32@gmail.com' },
+  { name: 'Melissa Chantal',      phone: '',            email: 'melissa.chantal112@gmail.com' },
+  { name: 'Samantha Cross',       phone: '',            email: 'scross1186@gmail.com' },
+  { name: 'Harley Dae',           phone: '',            email: 'harleydae2011@gmail.com' },
+  { name: 'Marie Daniel',         phone: '',            email: 'Danielmarie885@gmail.com' },
+  { name: 'Visa Davis',           phone: '',            email: 'altovisedavis23@gmail.com' },
+  { name: 'Visa Davis',           phone: '',            email: 'altovisedavis23@aol.com' },
+  { name: 'Gary Davis',           phone: '',            email: 'Gdhandymanservice@gmail.com' },
+  { name: 'Gary Davis',           phone: '',            email: 'Ganddphotographyflimproduction@gmail.com' },
+  { name: 'Gary Davis',           phone: '',            email: 'ganddphotographyfilmproduction@gmail.com' },
+  { name: 'Fredie Gold',          phone: '863-221-8189', email: 'Frediegold1984@gmail.com' },
+  { name: 'Terri Harris',         phone: '',            email: 'deloresjoy40@yahoo.com' },
+  { name: 'Keandre Haynes',       phone: '727-430-5490', email: 'Keandrehaynes@gmail.com' },
+  { name: 'Diana Johnson (Haynes)', phone: '727-333-0137', email: 'Dianajohnson47745@gmail.com' },
+  { name: 'Angela Hendrix',       phone: '',            email: 'xavierxpress@aol.com' },
+  { name: 'Keisha Hepburb',       phone: '863-808-2693', email: 'htrekeisha@gmail.com' },
+  { name: 'Travis Houston',       phone: '',            email: 'Houstontravis43@gmail.com' },
+];
+
+// Generic CSV parser — handles Matrix export format + similar with a header row
+function parseCsv(text) {
+  const lines = text.replace(/\r\n?/g, '\n').split('\n').filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const parseLine = (line) => {
+    const cells = [];
+    let cur = '';
+    let inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; continue; }
+      if (c === '"') { inQ = !inQ; continue; }
+      if (c === ',' && !inQ) { cells.push(cur); cur = ''; continue; }
+      cur += c;
+    }
+    cells.push(cur);
+    return cells;
+  };
+  const headers = parseLine(lines[0]).map(h => h.trim().toLowerCase());
+  const out = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cells = parseLine(lines[i]);
+    const row = {};
+    headers.forEach((h, idx) => { row[h] = (cells[idx] || '').trim(); });
+    out.push(row);
+  }
+  return out;
+}
 
 /* =========================================================
    DRIP CAMPAIGNS — automated client-nurture sequences
@@ -5136,6 +5199,77 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
   const [nurtureFilterOn, setNurtureFilterOn] = useState(false);
   const [nurtureLeadId, setNurtureLeadId] = useState(null);
   const [showProfileForm, setShowProfileForm] = useState(false);
+  const [directoryOpen, setDirectoryOpen] = useState(false);
+  const [importMsg, setImportMsg] = useState('');
+
+  // Import the baked-in Matrix contacts (dedupe against existing by email)
+  const importMatrix = () => {
+    const existingEmails = new Set(leads.map(l => (l.email || '').toLowerCase()).filter(Boolean));
+    const imported = [];
+    const skipped = [];
+    for (const c of MATRIX_CONTACTS) {
+      const em = (c.email || '').toLowerCase();
+      if (em && existingEmails.has(em)) {
+        skipped.push(c);
+        continue;
+      }
+      if (em) existingEmails.add(em);
+      imported.push(c);
+    }
+    if (!confirm(`Import ${imported.length} contacts from your Matrix CSV?\n(${skipped.length} duplicates skipped.)`)) return;
+    imported.forEach(c => {
+      onAdd({
+        name: c.name,
+        phone: c.phone,
+        email: c.email,
+        type: 'other',
+        stage: 'new',
+        source: 'mls_import',
+        tags: ['mls_matrix'],
+        notes: 'Imported from MLS Matrix CSV.',
+      });
+    });
+    setImportMsg(`\u2713 Imported ${imported.length} contacts${skipped.length ? ` (${skipped.length} dupes skipped)` : ''}`);
+    setTimeout(() => setImportMsg(''), 4000);
+    haptic('success');
+  };
+
+  // Upload a generic CSV with common Matrix-like columns
+  const importCsvFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const rows = parseCsv(reader.result);
+        if (!rows.length) { alert('CSV is empty.'); return; }
+        const existingEmails = new Set(leads.map(l => (l.email || '').toLowerCase()).filter(Boolean));
+        let added = 0, dupes = 0;
+        for (const r of rows) {
+          const name = [r.name_first, r.name_middle, r.name_last].filter(Boolean).join(' ').trim()
+                    || r.name || r.full_name || '(no name)';
+          const email = r.email1 || r.email || '';
+          const phone = r.telephone_mobile || r.telephone_home || r.telephone_office || r.phone || '';
+          if (name === '.' || name === '') continue;
+          if (email && existingEmails.has(email.toLowerCase())) { dupes++; continue; }
+          if (email) existingEmails.add(email.toLowerCase());
+          onAdd({
+            name, phone, email,
+            type: 'other', stage: 'new', source: 'mls_import',
+            tags: ['csv_import'],
+            notes: r.notes || 'Imported from CSV.',
+          });
+          added++;
+        }
+        setImportMsg(`\u2713 ${added} added${dupes ? ` (${dupes} dupes skipped)` : ''}`);
+        setTimeout(() => setImportMsg(''), 4000);
+      } catch (err) {
+        alert('CSV parse failed: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
 
   const focusLead = leads.find(l => l.id === focusLeadId) || null;
 
@@ -5241,14 +5375,41 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
 
   return (
     <div>
-      {/* Header + Add button */}
-      <div className="flex items-center justify-between mb-4">
+      {/* Header + action buttons */}
+      <div className="flex items-center justify-between mb-3">
         <p style={{ ...serif, color: C.ink }} className="text-xl leading-tight">CRM</p>
-        <div className="flex gap-2">
-          <AdminBtn onClick={() => setShowProfileForm(true)} variant="gold">+ New lead</AdminBtn>
-          <AdminBtn onClick={exportCsv} variant="ghost">Export CSV</AdminBtn>
-        </div>
+        <p className="text-xs" style={{ color: C.muted }}>
+          {leads.length} {leads.length === 1 ? 'contact' : 'contacts'}
+        </p>
       </div>
+
+      {/* Primary actions: My Clients, New Lead, Import */}
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <button onClick={() => setDirectoryOpen(true)}
+          style={{ backgroundColor: C.ink, color: C.cream }}
+          className="py-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98] transition">
+          <Users size={13} /> My Clients
+        </button>
+        <button onClick={() => setShowProfileForm(true)}
+          style={{ backgroundColor: C.gold, color: C.ink }}
+          className="py-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98] transition">
+          <Plus size={13} /> New lead
+        </button>
+      </div>
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        <AdminBtn onClick={importMatrix} variant="ghost">+ Import Matrix</AdminBtn>
+        <label style={{ backgroundColor: C.paper, color: C.ink, border: `1px solid ${C.line}` }}
+          className="px-3 py-2 rounded-lg text-xs font-semibold text-center cursor-pointer active:scale-[0.98]">
+          + Import CSV
+          <input type="file" accept=".csv" onChange={importCsvFile} className="hidden" />
+        </label>
+        <AdminBtn onClick={exportCsv} variant="ghost">Export CSV</AdminBtn>
+      </div>
+      {importMsg && (
+        <p className="text-xs text-center mb-2" style={{ color: C.success }}>
+          {importMsg}
+        </p>
+      )}
 
       {/* Dashboard stats */}
       <div className="grid grid-cols-3 gap-2 mb-4">
@@ -5404,6 +5565,143 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
           onClose={() => setShowProfileForm(false)}
         />
       )}
+
+      {/* My Clients directory — alphabetical list of all contacts */}
+      {directoryOpen && (
+        <ClientDirectory
+          leads={leads}
+          onOpen={(id) => { setDirectoryOpen(false); setFocusLeadId(id); }}
+          onClose={() => setDirectoryOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ClientDirectory({ leads, onOpen, onClose }) {
+  const [q, setQ] = useState('');
+
+  // Sort by last name (fallback to full name)
+  const sorted = [...leads].sort((a, b) => {
+    const la = ((a.name || '').split(' ').slice(-1)[0] || '').toLowerCase();
+    const lb = ((b.name || '').split(' ').slice(-1)[0] || '').toLowerCase();
+    return la.localeCompare(lb);
+  });
+
+  const filtered = q.trim()
+    ? sorted.filter(l => {
+        const s = `${l.name || ''} ${l.email || ''} ${l.phone || ''}`.toLowerCase();
+        return s.includes(q.toLowerCase());
+      })
+    : sorted;
+
+  // Group by first letter of last name
+  const groups = {};
+  for (const l of filtered) {
+    const last = (l.name || '').split(' ').slice(-1)[0] || '?';
+    const letter = (last[0] || '?').toUpperCase();
+    if (!groups[letter]) groups[letter] = [];
+    groups[letter].push(l);
+  }
+  const letters = Object.keys(groups).sort();
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-start justify-center"
+         style={{ backgroundColor: 'rgba(15,42,63,0.85)' }}
+         onClick={onClose}>
+      <div onClick={e => e.stopPropagation()}
+           style={{ backgroundColor: C.cream, maxHeight: '92vh', width: '100%', maxWidth: 640 }}
+           className="rounded-t-3xl sm:rounded-3xl mt-4 sm:mt-8 overflow-hidden flex flex-col shadow-2xl">
+        {/* Header */}
+        <div className="p-5 flex items-center gap-3"
+             style={{ backgroundColor: C.ink, color: C.cream, borderBottom: `1px solid ${C.gold}` }}>
+          <div className="w-10 h-10 rounded-lg grid place-items-center"
+               style={{ backgroundColor: C.gold, color: C.ink }}>
+            <Users size={18} />
+          </div>
+          <div className="flex-1">
+            <p style={serif} className="text-xl leading-tight">My Clients</p>
+            <p className="text-[11px] opacity-70">{leads.length} total &middot; tap anyone for their profile</p>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 rounded-full grid place-items-center"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="p-3" style={{ backgroundColor: C.paper, borderBottom: `1px solid ${C.line}` }}>
+          <input value={q} onChange={e => setQ(e.target.value)}
+            placeholder="Search name, email, phone..."
+            style={{ backgroundColor: C.cream, border: `1px solid ${C.line}`, color: C.charcoal }}
+            className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" />
+        </div>
+
+        {/* Directory */}
+        <div className="overflow-y-auto flex-1 relative">
+          {letters.length === 0 && (
+            <p className="text-center py-10 text-sm" style={{ color: C.muted }}>
+              {leads.length === 0 ? 'No contacts yet. Tap "+ Import Matrix" or "+ New lead".' : 'No matches.'}
+            </p>
+          )}
+          {letters.map(letter => (
+            <div key={letter}>
+              <p id={`dir-${letter}`}
+                 className="sticky top-0 z-10 px-5 py-1.5 text-[11px] uppercase tracking-[0.2em] font-bold"
+                 style={{ backgroundColor: C.ink, color: C.gold, borderBottom: `1px solid ${C.gold}` }}>
+                {letter}
+              </p>
+              {groups[letter].map(lead => {
+                const stage = CRM_STAGES.find(s => s.id === lead.stage) || CRM_STAGES[0];
+                const lc = lastContactedInfo(lead);
+                return (
+                  <button key={lead.id}
+                    onClick={() => onOpen(lead.id)}
+                    className="w-full px-5 py-3 flex items-center gap-3 text-left active:scale-[0.99] transition"
+                    style={{ borderBottom: `1px solid ${C.line}`, backgroundColor: C.cream }}>
+                    <div className="w-9 h-9 rounded-full grid place-items-center text-xs font-bold flex-shrink-0"
+                         style={{ backgroundColor: stage.color, color: '#fff' }}>
+                      {(lead.name || '?').charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate" style={{ color: C.ink }}>
+                        {lead.name || '(no name)'}
+                      </p>
+                      <p className="text-[11px] truncate" style={{ color: C.muted }}>
+                        {lead.phone || lead.email || '(no contact)'}
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                         style={{ backgroundColor: stage.color, color: '#fff' }}>
+                        {stage.label}
+                      </p>
+                      <p className="text-[10px] mt-0.5" style={{ color: C.muted }}>
+                        {lc.label}
+                      </p>
+                    </div>
+                    <ChevronRight size={14} style={{ color: C.muted }} />
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+
+        {/* A-Z jump bar */}
+        {letters.length > 5 && (
+          <div className="p-1 flex items-center justify-center flex-wrap gap-0.5"
+               style={{ backgroundColor: C.paper, borderTop: `1px solid ${C.line}` }}>
+            {letters.map(l => (
+              <a key={l} href={`#dir-${l}`}
+                 className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                 style={{ color: C.gold }}>
+                {l}
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
