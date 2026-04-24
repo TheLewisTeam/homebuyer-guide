@@ -5135,6 +5135,7 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
   const [filterSource, setFilterSource] = useState('all');
   const [nurtureFilterOn, setNurtureFilterOn] = useState(false);
   const [nurtureLeadId, setNurtureLeadId] = useState(null);
+  const [showProfileForm, setShowProfileForm] = useState(false);
 
   const focusLead = leads.find(l => l.id === focusLeadId) || null;
 
@@ -5206,11 +5207,6 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
              onToggleTask={(id) => onToggleTask(focusLead.id, id)} />;
   }
 
-  // Add lead view
-  if (view === 'add') {
-    return <LeadAddForm onCancel={() => setView('dashboard')}
-                        onSave={(lead) => { const id = onAdd(lead); setFocusLeadId(id); setView('dashboard'); }} />;
-  }
 
   // Drip queue — computed from all leads
   const dripQueue = useMemo(() => computeDripQueue(leads), [leads]);
@@ -5249,7 +5245,7 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
       <div className="flex items-center justify-between mb-4">
         <p style={{ ...serif, color: C.ink }} className="text-xl leading-tight">CRM</p>
         <div className="flex gap-2">
-          <AdminBtn onClick={() => setView('add')} variant="gold">+ New lead</AdminBtn>
+          <AdminBtn onClick={() => setShowProfileForm(true)} variant="gold">+ New lead</AdminBtn>
           <AdminBtn onClick={exportCsv} variant="ghost">Export CSV</AdminBtn>
         </div>
       </div>
@@ -5394,6 +5390,18 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
             setNurtureLeadId(null);
           }}
           onClose={() => setNurtureLeadId(null)}
+        />
+      )}
+
+      {/* Full Client Profile form (opened from + New lead button) */}
+      {showProfileForm && (
+        <ClientProfileForm
+          client={{}}
+          onCapture={(lead) => {
+            const id = onAdd(lead);
+            setFocusLeadId(id);
+          }}
+          onClose={() => setShowProfileForm(false)}
         />
       )}
     </div>
