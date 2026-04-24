@@ -7114,7 +7114,12 @@ function CloudSyncPanel({ all, setAll, flash }) {
   const statusLabel = status === 'connected' ? 'Connected' :
                       status === 'error' ? 'Connection error' : 'Not connected';
 
-  const isDefault = !window.localStorage.getItem(CLOUD_CFG_KEY);
+  let isDefault = true;
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      isDefault = !window.localStorage.getItem(CLOUD_CFG_KEY);
+    }
+  } catch { /* localStorage blocked (private mode) — default to true */ }
 
   return (
     <div className="rounded-lg p-4 mb-3"
