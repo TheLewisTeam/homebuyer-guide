@@ -752,6 +752,7 @@ const CRM_STAGES = [
 ];
 
 const CRM_SOURCES = [
+  { id: 'client_portal', label: 'Client Portal \u2728' },
   { id: 'app_contact', label: 'App contact form' },
   { id: 'app_valuation', label: 'Home valuation request' },
   { id: 'app_showing', label: 'Showing request' },
@@ -4355,7 +4356,8 @@ function ClientProfileForm({ client, onCapture, onClose }) {
         email: f.email,
         phone: f.phone,
         type: f.type,
-        source: 'app_contact',
+        source: 'client_portal',
+        stage: 'new',
         address: f.address,
         birthday: f.birthday,
         spouseName: f.spouseName,
@@ -4365,7 +4367,7 @@ function ClientProfileForm({ client, onCapture, onClose }) {
         preferredContact: f.preferredContact,
         notes: f.notes,
         consent: f.consent,
-        tags: ['client_profile'],
+        tags: ['client_portal', 'new_lead'],
       });
     }
 
@@ -4402,14 +4404,26 @@ function ClientProfileForm({ client, onCapture, onClose }) {
                style={{ backgroundColor: C.gold, color: C.ink }}>
             <CheckCircle2 size={48} strokeWidth={1.8} />
           </div>
-          <p style={serif} className="text-2xl leading-tight mb-2" >
+          <p style={serif} className="text-2xl leading-tight mb-3" >
             Welcome to the family.
           </p>
-          <p className="text-sm mb-4" style={{ color: C.muted }}>
-            Profile saved. Lancey &amp; Stacy were just notified &mdash; expect a personal hello soon.
-          </p>
-          <p className="text-xs" style={{ color: C.gold }}>
-            \u2728 You'll hear from us on your birthday and home anniversary.
+          <div className="text-left rounded-xl p-4 mx-auto max-w-[320px] mb-4 space-y-2"
+               style={{ backgroundColor: C.paper, border: `1px solid ${C.line}` }}>
+            <p className="text-xs flex items-start gap-2" style={{ color: C.charcoal }}>
+              <CheckCircle2 size={14} style={{ color: C.success, marginTop: 1, flexShrink: 0 }} />
+              <span>Your profile is saved in our CRM.</span>
+            </p>
+            <p className="text-xs flex items-start gap-2" style={{ color: C.charcoal }}>
+              <CheckCircle2 size={14} style={{ color: C.success, marginTop: 1, flexShrink: 0 }} />
+              <span>Lancey &amp; Stacy got an instant email.</span>
+            </p>
+            <p className="text-xs flex items-start gap-2" style={{ color: C.charcoal }}>
+              <CheckCircle2 size={14} style={{ color: C.success, marginTop: 1, flexShrink: 0 }} />
+              <span>You'll hear from us on your birthday &amp; home anniversary \u2728</span>
+            </p>
+          </div>
+          <p className="text-[11px]" style={{ color: C.muted }}>
+            Expect a personal hello from the team soon.
           </p>
         </div>
       </ModalShell>
