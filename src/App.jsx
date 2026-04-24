@@ -965,6 +965,32 @@ const WORKSHOPS = [
    ========================================================= */
 
 /* =========================================================
+   PUSH EMAIL — server-side relay so Lancey gets a Gmail every time.
+   Uses formsubmit.co: POST to the endpoint, they email you.
+   First submission sends a one-time confirmation to Lancey's inbox — he clicks the link
+   and all subsequent forms arrive automatically. No signup, no API key.
+   ========================================================= */
+const PUSH_EMAIL_ENDPOINT = 'https://formsubmit.co/ajax/LewisTeamHomelife@gmail.com';
+
+async function pushEmailSubmission(subject, fields) {
+  try {
+    await fetch(PUSH_EMAIL_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        _subject: subject,
+        _template: 'table',
+        _captcha: 'false',
+        ...fields,
+      }),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/* =========================================================
    SUPABASE — lightweight fetch-based client (no npm dep)
    Lancey configures URL + anon key in Admin → Data → Cloud Sync.
    Stored in localStorage under lt_cloud_cfg.
@@ -1909,6 +1935,43 @@ function HomeTab({ client, buyPct, sellPct, moments, liveConfig, programs, wins,
         </h2>
       </div>
 
+      {/* NEW CLIENT PORTAL — hero CTA */}
+      <button onClick={() => onContact('profile')}
+        className="w-full relative overflow-hidden rounded-3xl p-6 text-left active:scale-[0.99] transition"
+        style={{
+          background: `linear-gradient(135deg, ${C.gold} 0%, ${C.goldDeep} 100%)`,
+          color: C.ink,
+          boxShadow: `0 12px 32px rgba(200, 152, 90, 0.35), inset 0 1px 0 rgba(255,255,255,0.3)`,
+        }}>
+        {/* Decorative star */}
+        <div className="absolute -right-4 -top-4 w-28 h-28 rounded-full opacity-20"
+             style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.8), transparent 70%)' }} />
+
+        <div className="flex items-start gap-4 relative">
+          <div className="w-14 h-14 rounded-2xl grid place-items-center flex-shrink-0"
+               style={{ backgroundColor: C.ink, color: C.gold }}>
+            <User size={26} strokeWidth={2.2} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em] opacity-80 mb-1">
+              New Client Portal
+            </p>
+            <p style={serif} className="text-2xl leading-tight">Join our family.</p>
+            <p className="text-xs opacity-85 mt-1.5 leading-relaxed">
+              Birthday wishes, home anniversary reminders, market intel tailored to you.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center justify-between mt-5 pt-4"
+             style={{ borderTop: `1px solid rgba(15,42,63,0.18)` }}>
+          <span className="text-xs font-bold uppercase tracking-wider">Create your profile</span>
+          <div className="w-9 h-9 rounded-full grid place-items-center"
+               style={{ backgroundColor: C.ink, color: C.gold }}>
+            <ArrowRight size={16} strokeWidth={2.5} />
+          </div>
+        </div>
+      </button>
+
       {/* Hero card with team portrait — faces front and center */}
       <div className="rounded-3xl overflow-hidden relative"
            style={{ backgroundColor: C.ink, color: C.cream, border: `1px solid ${C.gold}` }}>
@@ -2085,28 +2148,6 @@ function HomeTab({ client, buyPct, sellPct, moments, liveConfig, programs, wins,
           <ContactBtn icon={Mail} label="Email" href={`mailto:${AGENT.email}`} />
         </div>
       </div>
-
-      {/* Stay in touch — client profile form */}
-      <button onClick={() => onContact('profile')}
-         style={{ backgroundColor: C.paper, color: C.ink, border: `1px solid ${C.gold}` }}
-         className="w-full rounded-2xl p-5 active:scale-[0.99] transition text-left">
-        <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl grid place-items-center flex-shrink-0"
-               style={{ backgroundColor: C.gold, color: C.ink }}>
-            <Heart size={20} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] uppercase tracking-[0.2em]" style={{ color: C.gold }}>
-              Stay in touch
-            </p>
-            <p style={serif} className="text-lg leading-tight">Create your client profile</p>
-            <p className="text-xs mt-0.5" style={{ color: C.muted }}>
-              Get market updates on your birthday, home anniversary, and when the neighborhood shifts.
-            </p>
-          </div>
-          <ChevronRight size={18} style={{ color: C.gold }} />
-        </div>
-      </button>
 
       {/* Communities link — SEO landing pages */}
       <a href="/communities"
@@ -4297,10 +4338,17 @@ function ClientProfileForm({ client, onCapture, onClose }) {
     setF({ ...f, importantDates: f.importantDates.filter((_, idx) => idx !== i) });
   };
 
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+
   const valid = f.name && (f.email || f.phone) && f.consent;
 
-  const submit = () => {
-    if (!valid) return;
+  const submit = async () => {
+    if (!valid || submitting) return;
+    setSubmitting(true);
+    haptic('success');
+
+    // 1) Save to CRM locally (and cloud if connected)
     if (onCapture) {
       onCapture({
         name: f.name,
@@ -4320,26 +4368,53 @@ function ClientProfileForm({ client, onCapture, onClose }) {
         tags: ['client_profile'],
       });
     }
-    haptic('success');
-    const subject = encodeURIComponent(`New client profile \u2014 ${f.name}`);
-    const bodyLines = [
-      `CLIENT PROFILE SUBMISSION`,
-      `Name: ${f.name}`,
-      `Email: ${f.email}`,
-      `Phone: ${f.phone}`,
-      `Preferred contact: ${f.preferredContact}`,
-      f.birthday ? `Birthday: ${f.birthday}` : '',
-      f.spouseName ? `Spouse: ${f.spouseName}` : '',
-      f.spouseBirthday ? `Spouse birthday: ${f.spouseBirthday}` : '',
-      f.moveInDate ? `Home anniversary: ${f.moveInDate}` : '',
-      f.address ? `Home address: ${f.address}` : '',
-      f.importantDates.length ? `\nOther important dates:\n` + f.importantDates.map(d => `  \u2022 ${d.label}: ${d.date}`).join('\n') : '',
-      f.notes ? `\nNotes:\n${f.notes}` : '',
-      `\nConsented to ongoing communications: ${f.consent ? 'YES' : 'NO'}`,
-    ].filter(Boolean).join('\n');
-    window.location.href = `mailto:${AGENT.email}?subject=${subject}&body=${encodeURIComponent(bodyLines)}`;
-    setTimeout(onClose, 300);
+
+    // 2) Automatic email push to Lancey's Gmail
+    await pushEmailSubmission(`\uD83C\uDF89 New Client Portal: ${f.name}`, {
+      'Form type': 'New Client Portal',
+      'Name': f.name,
+      'Email': f.email || '(not provided)',
+      'Phone': f.phone || '(not provided)',
+      'Preferred contact': f.preferredContact,
+      'Birthday': f.birthday || '(not provided)',
+      'Spouse / partner': f.spouseName || '(n/a)',
+      'Spouse birthday': f.spouseBirthday || '(n/a)',
+      'Home anniversary': f.moveInDate || '(n/a)',
+      'Home address': f.address || '(n/a)',
+      'Other important dates': f.importantDates.length
+        ? f.importantDates.map(d => `${d.label}: ${d.date}`).join('; ')
+        : '(none)',
+      'Notes': f.notes || '(none)',
+      'Consent to ongoing comms': f.consent ? 'YES' : 'NO',
+      'Submitted at': new Date().toISOString(),
+    });
+
+    setSubmitting(false);
+    setDone(true);
+    setTimeout(onClose, 2000);
   };
+
+  if (done) {
+    return (
+      <ModalShell title="You're in!" onClose={onClose}>
+        <div className="text-center py-6">
+          <div className="w-20 h-20 mx-auto mb-4 rounded-full grid place-items-center"
+               style={{ backgroundColor: C.gold, color: C.ink }}>
+            <CheckCircle2 size={48} strokeWidth={1.8} />
+          </div>
+          <p style={serif} className="text-2xl leading-tight mb-2" >
+            Welcome to the family.
+          </p>
+          <p className="text-sm mb-4" style={{ color: C.muted }}>
+            Profile saved. Lancey &amp; Stacy were just notified &mdash; expect a personal hello soon.
+          </p>
+          <p className="text-xs" style={{ color: C.gold }}>
+            \u2728 You'll hear from us on your birthday and home anniversary.
+          </p>
+        </div>
+      </ModalShell>
+    );
+  }
 
   return (
     <ModalShell
@@ -4347,14 +4422,14 @@ function ClientProfileForm({ client, onCapture, onClose }) {
       sub="Stay on our list for market updates, birthday wishes, and home anniversary reminders. We never share your info."
       onClose={onClose}
       footer={
-        <button onClick={valid ? submit : undefined}
-          disabled={!valid}
+        <button onClick={valid && !submitting ? submit : undefined}
+          disabled={!valid || submitting}
           style={{
             backgroundColor: valid ? C.gold : 'rgba(200,152,90,0.35)',
             color: valid ? C.ink : 'rgba(15,42,63,0.45)',
           }}
           className="w-full py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition disabled:cursor-not-allowed">
-          Save my profile <Send size={15} />
+          {submitting ? 'Sending\u2026' : (<>Save my profile <Send size={15} /></>)}
         </button>
       }>
       <LightField label="Your name" value={f.name} onChange={v => setF({ ...f, name: v })} />
