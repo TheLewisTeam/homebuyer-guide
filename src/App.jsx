@@ -1967,7 +1967,7 @@ function HomeTab({ client, buyPct, sellPct, moments, liveConfig, programs, wins,
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-[10px] uppercase tracking-[0.2em]" style={{ color: C.gold }}>
-              15 cities &middot; Polk County
+              Serving Central Florida
             </p>
             <p style={serif} className="text-lg leading-tight">Explore communities</p>
             <p className="text-xs opacity-80 mt-0.5">
