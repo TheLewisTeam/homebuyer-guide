@@ -776,9 +776,127 @@ const CRM_TYPES = [
   { id: 'investor', label: 'Investor' },
   { id: 'renter', label: 'Renter' },
   { id: 'both', label: 'Buyer + Seller' },
+  { id: 'past_client', label: 'Past client' },
   { id: 'follower', label: 'Follower / Audience' },
   { id: 'other', label: 'Other' },
 ];
+
+/* =========================================================
+   DRIP CAMPAIGNS — automated client-nurture sequences
+   Each campaign has a trigger + steps. Steps are computed against
+   the lead's createdAt, closeDate, birthday, or moveInDate.
+   ========================================================= */
+const DRIP_CAMPAIGNS = [
+  {
+    id: 'new_lead',
+    name: 'New Lead Nurture',
+    trigger: 'createdAt',
+    when: (lead) => true,
+    steps: [
+      { offsetDays: 0, channel: 'call', title: 'Welcome call', body: "Hey {first}, this is Lancey with The Lewis Team. Thanks for reaching out! Quick call to understand what you're looking for?" },
+      { offsetDays: 2, channel: 'text', title: 'Day 2 check-in', body: "Hey {first} \u2014 sending some listings I think you'll love. Any questions? Text me anytime. \u2013 Lancey, Lewis Team" },
+      { offsetDays: 7, channel: 'email', title: 'Week 1 resources', body: "Hi {first}, attached is our free Central FL buyer's guide. Market's moving \u2014 let's chat when you're ready. Best, The Lewis Team" },
+      { offsetDays: 21, channel: 'text', title: '3-week follow-up', body: "Hey {first}, how's your home search going? Got new listings this week \u2014 want me to send them?" },
+      { offsetDays: 45, channel: 'call', title: '6-week check-in', body: "Call to check in. Are they still active? Update their stage." },
+    ],
+  },
+  {
+    id: 'closed_stay_in_touch',
+    name: 'Closed Client Stay-in-Touch',
+    trigger: 'closeDate',
+    when: (lead) => lead.stage === 'closed',
+    steps: [
+      { offsetDays: 14, channel: 'text', title: '2 weeks after close', body: "Hey {first}, how are you settling in? Anything you need \u2014 contractor referrals, anything at all \u2014 I'm a text away. \u2013 Lancey" },
+      { offsetDays: 90, channel: 'email', title: '3-month referral ask', body: "Hi {first}, 3 months in your new home \u2014 hope it feels like home! If you know anyone thinking about buying or selling, I'd love an introduction. Referrals are the heart of our business. \u2013 The Lewis Team" },
+      { offsetDays: 180, channel: 'text', title: '6-month check-in', body: "Hey {first}, 6 months in! Market update: your home's probably appreciated. Want a quick value check?" },
+      { offsetDays: 365, channel: 'call', title: '1-year home anniversary', body: "Call to celebrate 1 year in the home. Offer a free market value report." },
+    ],
+  },
+  {
+    id: 'birthday',
+    name: 'Birthday Greeting',
+    trigger: 'birthday',
+    recurring: true,
+    when: (lead) => !!lead.birthday,
+    steps: [
+      { offsetDays: -3, channel: 'note', title: 'Prep a card', body: "Birthday in 3 days \u2014 send a handwritten card." },
+      { offsetDays: 0, channel: 'text', title: 'Happy birthday', body: "Happy birthday, {first}! \uD83C\uDF89 Hope today is incredible. \u2013 Lancey, Stacy + The Lewis Team" },
+    ],
+  },
+  {
+    id: 'home_anniversary',
+    name: 'Home Anniversary',
+    trigger: 'moveInDate',
+    recurring: true,
+    when: (lead) => !!lead.moveInDate,
+    steps: [
+      { offsetDays: 0, channel: 'text', title: 'Home anniversary', body: "Happy home anniversary, {first}! \uD83C\uDFE1 Can't believe it's been {years} year(s). Want a quick market update on what the house is worth today? \u2013 Lancey" },
+      { offsetDays: 14, channel: 'email', title: 'Annual market report', body: "Send CMA: current home value + neighborhood trends + 1-year appreciation." },
+    ],
+  },
+];
+
+// Compute all pending drip actions across all leads as of today
+function computeDripQueue(leads, today = new Date()) {
+  const queue = [];
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const DAY = 86400000;
+
+  for (const lead of leads || []) {
+    for (const campaign of DRIP_CAMPAIGNS) {
+      if (!campaign.when(lead)) continue;
+
+      // Figure out base date
+      let baseISO = null;
+      if (campaign.trigger === 'createdAt') baseISO = lead.createdAt;
+      if (campaign.trigger === 'closeDate') baseISO = lead.closeDate || null;
+      if (campaign.trigger === 'birthday') baseISO = lead.birthday || null;
+      if (campaign.trigger === 'moveInDate') baseISO = lead.moveInDate || null;
+      if (!baseISO) continue;
+
+      const base = new Date(baseISO);
+      if (isNaN(base)) continue;
+
+      // For recurring campaigns, anchor to this year's occurrence
+      let anchor = base;
+      if (campaign.recurring) {
+        anchor = new Date(today.getFullYear(), base.getMonth(), base.getDate());
+      }
+
+      for (const step of campaign.steps) {
+        const due = new Date(anchor.getTime() + step.offsetDays * DAY);
+        const dueStart = new Date(due.getFullYear(), due.getMonth(), due.getDate()).getTime();
+        const diffDays = Math.round((dueStart - todayStart) / DAY);
+        const stepKey = `${campaign.id}:${step.offsetDays}:${campaign.recurring ? today.getFullYear() : ''}`;
+
+        // Show actions due today or up to 3 days in the past (missed + today)
+        if (diffDays <= 0 && diffDays >= -3) {
+          const alreadyDone = (lead.activities || []).some(a => a.dripKey === stepKey);
+          if (alreadyDone) continue;
+          const years = campaign.recurring ? (today.getFullYear() - base.getFullYear()) : 0;
+          queue.push({
+            leadId: lead.id,
+            leadName: lead.name || lead.phone || lead.email || '(no name)',
+            leadPhone: lead.phone,
+            leadEmail: lead.email,
+            campaignId: campaign.id,
+            campaignName: campaign.name,
+            step,
+            stepKey,
+            dueIn: diffDays,
+            body: step.body
+              .replace('{first}', (lead.name || 'there').split(' ')[0])
+              .replace('{years}', years > 0 ? years : 1),
+          });
+        }
+      }
+    }
+  }
+
+  // Sort by most overdue first
+  queue.sort((a, b) => a.dueIn - b.dueIn);
+  return queue;
+}
 
 // Sponsor slots — rotate per-show or keep evergreen
 const SPONSORS = [
@@ -912,6 +1030,9 @@ async function cloudTestConnection() {
   await supaFetch('/app_content?select=key&limit=1');
   return true;
 }
+
+// Hardcoded admin PIN — change here if Lancey ever needs to update
+const ADMIN_PIN = '0428';
 
 // Haptic feedback — works on Android, silent on iOS Safari (no vibrate API)
 function haptic(kind = 'tap') {
@@ -1159,6 +1280,14 @@ export default function App() {
       dealValue: partial.dealValue || 0,
       closeDate: partial.closeDate || '',
       tags: partial.tags || [],
+      // Relationship + life-event fields
+      birthday: partial.birthday || '',
+      spouseName: partial.spouseName || '',
+      spouseBirthday: partial.spouseBirthday || '',
+      moveInDate: partial.moveInDate || '',
+      importantDates: partial.importantDates || [],
+      preferredContact: partial.preferredContact || '',
+      consent: partial.consent || false,
       activities: [{
         id: `a_${Date.now()}`,
         type: 'system',
@@ -1316,6 +1445,9 @@ export default function App() {
       {modal === 'callin' && (
         <CallInForm client={client} onCapture={captureLead} onClose={() => setModal(null)} />
       )}
+      {modal === 'profile' && (
+        <ClientProfileForm client={client} onCapture={captureLead} onClose={() => setModal(null)} />
+      )}
       {shareData && (
         <ShareMenu data={shareData} onClose={() => setShareData(null)} />
       )}
@@ -1345,9 +1477,7 @@ export default function App() {
       )}
       {pinPromptOpen && (
         <PinPrompt
-          existingPin={getStoredPin()}
-          onCreate={(pin) => { setStoredPin(pin); confirmUnlock(); }}
-          onVerify={(pin) => { confirmUnlock(); }}
+          onVerify={() => confirmUnlock()}
           onClose={() => setPinPromptOpen(false)}
         />
       )}
@@ -1955,6 +2085,28 @@ function HomeTab({ client, buyPct, sellPct, moments, liveConfig, programs, wins,
           <ContactBtn icon={Mail} label="Email" href={`mailto:${AGENT.email}`} />
         </div>
       </div>
+
+      {/* Stay in touch — client profile form */}
+      <button onClick={() => onContact('profile')}
+         style={{ backgroundColor: C.paper, color: C.ink, border: `1px solid ${C.gold}` }}
+         className="w-full rounded-2xl p-5 active:scale-[0.99] transition text-left">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl grid place-items-center flex-shrink-0"
+               style={{ backgroundColor: C.gold, color: C.ink }}>
+            <Heart size={20} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] uppercase tracking-[0.2em]" style={{ color: C.gold }}>
+              Stay in touch
+            </p>
+            <p style={serif} className="text-lg leading-tight">Create your client profile</p>
+            <p className="text-xs mt-0.5" style={{ color: C.muted }}>
+              Get market updates on your birthday, home anniversary, and when the neighborhood shifts.
+            </p>
+          </div>
+          <ChevronRight size={18} style={{ color: C.gold }} />
+        </div>
+      </button>
 
       {/* Communities link — SEO landing pages */}
       <a href="/communities"
@@ -4117,6 +4269,198 @@ function NotifyForm({ client, onCapture, onClose }) {
   );
 }
 
+function ClientProfileForm({ client, onCapture, onClose }) {
+  const [f, setF] = useState({
+    name: client.name || '',
+    email: client.email || '',
+    phone: client.phone || '',
+    type: 'past_client',
+    birthday: '',
+    spouseName: '',
+    spouseBirthday: '',
+    moveInDate: '',
+    address: '',
+    importantDates: [],
+    preferredContact: 'text',
+    notes: '',
+    consent: true,
+  });
+  const [newDateLabel, setNewDateLabel] = useState('');
+  const [newDateValue, setNewDateValue] = useState('');
+
+  const addDate = () => {
+    if (!newDateLabel.trim() || !newDateValue) return;
+    setF({ ...f, importantDates: [...f.importantDates, { label: newDateLabel.trim(), date: newDateValue }] });
+    setNewDateLabel(''); setNewDateValue('');
+  };
+  const removeDate = (i) => {
+    setF({ ...f, importantDates: f.importantDates.filter((_, idx) => idx !== i) });
+  };
+
+  const valid = f.name && (f.email || f.phone) && f.consent;
+
+  const submit = () => {
+    if (!valid) return;
+    if (onCapture) {
+      onCapture({
+        name: f.name,
+        email: f.email,
+        phone: f.phone,
+        type: f.type,
+        source: 'app_contact',
+        address: f.address,
+        birthday: f.birthday,
+        spouseName: f.spouseName,
+        spouseBirthday: f.spouseBirthday,
+        moveInDate: f.moveInDate,
+        importantDates: f.importantDates,
+        preferredContact: f.preferredContact,
+        notes: f.notes,
+        consent: f.consent,
+        tags: ['client_profile'],
+      });
+    }
+    haptic('success');
+    const subject = encodeURIComponent(`New client profile \u2014 ${f.name}`);
+    const bodyLines = [
+      `CLIENT PROFILE SUBMISSION`,
+      `Name: ${f.name}`,
+      `Email: ${f.email}`,
+      `Phone: ${f.phone}`,
+      `Preferred contact: ${f.preferredContact}`,
+      f.birthday ? `Birthday: ${f.birthday}` : '',
+      f.spouseName ? `Spouse: ${f.spouseName}` : '',
+      f.spouseBirthday ? `Spouse birthday: ${f.spouseBirthday}` : '',
+      f.moveInDate ? `Home anniversary: ${f.moveInDate}` : '',
+      f.address ? `Home address: ${f.address}` : '',
+      f.importantDates.length ? `\nOther important dates:\n` + f.importantDates.map(d => `  \u2022 ${d.label}: ${d.date}`).join('\n') : '',
+      f.notes ? `\nNotes:\n${f.notes}` : '',
+      `\nConsented to ongoing communications: ${f.consent ? 'YES' : 'NO'}`,
+    ].filter(Boolean).join('\n');
+    window.location.href = `mailto:${AGENT.email}?subject=${subject}&body=${encodeURIComponent(bodyLines)}`;
+    setTimeout(onClose, 300);
+  };
+
+  return (
+    <ModalShell
+      title="Your client profile"
+      sub="Stay on our list for market updates, birthday wishes, and home anniversary reminders. We never share your info."
+      onClose={onClose}
+      footer={
+        <button onClick={valid ? submit : undefined}
+          disabled={!valid}
+          style={{
+            backgroundColor: valid ? C.gold : 'rgba(200,152,90,0.35)',
+            color: valid ? C.ink : 'rgba(15,42,63,0.45)',
+          }}
+          className="w-full py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition disabled:cursor-not-allowed">
+          Save my profile <Send size={15} />
+        </button>
+      }>
+      <LightField label="Your name" value={f.name} onChange={v => setF({ ...f, name: v })} />
+      <div className="grid grid-cols-2 gap-2">
+        <LightField label="Email" type="email" value={f.email} onChange={v => setF({ ...f, email: v })} />
+        <LightField label="Phone" type="tel" value={f.phone} onChange={v => setF({ ...f, phone: v })} />
+      </div>
+      <LightField label="Birthday (MM/DD/YYYY)" type="date" value={f.birthday}
+                  onChange={v => setF({ ...f, birthday: v })} />
+
+      <div>
+        <label className="block text-[11px] uppercase tracking-wider mb-2" style={{ color: C.muted }}>
+          Relationship (optional)
+        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <LightField label="Spouse/partner name" value={f.spouseName}
+                      onChange={v => setF({ ...f, spouseName: v })} />
+          <LightField label="Their birthday" type="date" value={f.spouseBirthday}
+                      onChange={v => setF({ ...f, spouseBirthday: v })} />
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-[11px] uppercase tracking-wider mb-2" style={{ color: C.muted }}>
+          Home anniversary (if you own)
+        </label>
+        <LightField label="Move-in / closing date" type="date" value={f.moveInDate}
+                    onChange={v => setF({ ...f, moveInDate: v })} />
+        <LightField label="Home address" value={f.address}
+                    onChange={v => setF({ ...f, address: v })}
+                    placeholder="Optional" />
+      </div>
+
+      {/* Additional important dates */}
+      <div>
+        <label className="block text-[11px] uppercase tracking-wider mb-2" style={{ color: C.muted }}>
+          Other important dates (anniversaries, kids' birthdays, etc.)
+        </label>
+        {f.importantDates.length > 0 && (
+          <div className="space-y-1.5 mb-2">
+            {f.importantDates.map((d, i) => (
+              <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg"
+                   style={{ backgroundColor: C.paper, border: `1px solid ${C.line}` }}>
+                <span className="text-sm flex-1" style={{ color: C.ink }}>{d.label}</span>
+                <span className="digital-mono text-xs" style={{ color: C.gold }}>{d.date}</span>
+                <button onClick={() => removeDate(i)}
+                  className="text-xs" style={{ color: C.ruby }}>&times;</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-end">
+          <input value={newDateLabel} onChange={e => setNewDateLabel(e.target.value)}
+            placeholder="Label (e.g. Wedding anniv.)"
+            style={{ backgroundColor: C.paper, border: `1px solid ${C.line}`, color: C.charcoal }}
+            className="px-3 py-2.5 rounded-lg text-sm outline-none" />
+          <input type="date" value={newDateValue} onChange={e => setNewDateValue(e.target.value)}
+            style={{ backgroundColor: C.paper, border: `1px solid ${C.line}`, color: C.charcoal }}
+            className="px-3 py-2.5 rounded-lg text-sm outline-none" />
+          <button onClick={addDate}
+            style={{ backgroundColor: C.ink, color: C.cream }}
+            className="px-3 py-2.5 rounded-lg text-sm font-semibold">+</button>
+        </div>
+      </div>
+
+      {/* Preferred contact */}
+      <div>
+        <label className="block text-[11px] uppercase tracking-wider mb-2" style={{ color: C.muted }}>
+          Preferred contact
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { v: 'text', l: 'Text' },
+            { v: 'call', l: 'Call' },
+            { v: 'email', l: 'Email' },
+          ].map(opt => (
+            <button key={opt.v} onClick={() => setF({ ...f, preferredContact: opt.v })}
+              style={{
+                backgroundColor: f.preferredContact === opt.v ? C.gold : C.paper,
+                color: f.preferredContact === opt.v ? C.ink : C.ink,
+                border: `1px solid ${f.preferredContact === opt.v ? C.gold : C.line}`,
+              }}
+              className="px-3 py-2.5 rounded-lg text-xs font-semibold">
+              {opt.l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <TextArea label="Anything else we should know?" rows={3}
+                value={f.notes} onChange={v => setF({ ...f, notes: v })}
+                placeholder="Family milestones, favorite restaurants, what makes you tick..." />
+
+      <label className="flex items-start gap-2 text-xs cursor-pointer"
+             style={{ color: C.charcoal }}>
+        <input type="checkbox" checked={f.consent}
+               onChange={e => setF({ ...f, consent: e.target.checked })}
+               className="mt-0.5" style={{ accentColor: C.gold }} />
+        <span className="leading-relaxed">
+          I agree to receive occasional texts, emails, and cards from The Lewis Team \u2014 birthday wishes, home anniversary notes, market updates. You can opt out any time by replying STOP.
+        </span>
+      </label>
+    </ModalShell>
+  );
+}
+
 function CallInForm({ client, onCapture, onClose }) {
   const [form, setForm] = useState({
     name: client.name || '', phone: client.phone || '', email: client.email || '',
@@ -4197,26 +4541,35 @@ function CallInForm({ client, onCapture, onClose }) {
    ADMIN CENTER — in-app content editor
    ========================================================= */
 
-function PinPrompt({ existingPin, onCreate, onVerify, onClose }) {
-  const creating = !existingPin;
+function PinPrompt({ onVerify, onClose }) {
   const [pin, setPin] = useState('');
-  const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
 
   const submit = () => {
-    if (creating) {
-      if (pin.length < 4) { setError('Pick at least 4 digits.'); return; }
-      if (pin !== confirm) { setError('PINs don\u2019t match.'); return; }
-      onCreate(pin);
+    if (pin === ADMIN_PIN) {
+      haptic('success');
+      onVerify();
     } else {
-      if (pin === existingPin) {
-        onVerify(pin);
-      } else {
-        setError('Wrong PIN.');
-        setPin('');
-      }
+      haptic('warn');
+      setError('Wrong PIN.');
+      setPin('');
     }
   };
+
+  // Auto-submit when 4 digits entered
+  useEffect(() => {
+    if (pin.length === 4) {
+      if (pin === ADMIN_PIN) {
+        haptic('success');
+        onVerify();
+      } else {
+        haptic('warn');
+        setError('Wrong PIN.');
+        setTimeout(() => setPin(''), 400);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pin]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -4232,12 +4585,8 @@ function PinPrompt({ existingPin, onCreate, onVerify, onClose }) {
             <Wrench size={18} />
           </div>
           <div className="flex-1">
-            <p style={serif} className="text-xl leading-tight">
-              {creating ? 'Create Admin PIN' : 'Enter Admin PIN'}
-            </p>
-            <p className="text-[11px] opacity-70">
-              {creating ? 'Set a PIN to protect admin access.' : 'Tap 5 times on the LT logo unlocked this prompt.'}
-            </p>
+            <p style={serif} className="text-xl leading-tight">Admin PIN</p>
+            <p className="text-[11px] opacity-70">4-digit code to unlock admin.</p>
           </div>
           <button onClick={onClose} className="w-8 h-8 rounded-full grid place-items-center"
                   style={{ backgroundColor: 'rgba(255,255,255,0.1)' }}>
@@ -4245,44 +4594,27 @@ function PinPrompt({ existingPin, onCreate, onVerify, onClose }) {
           </button>
         </div>
         <div className="p-5 space-y-3">
-          <div>
-            <label className="block text-[11px] uppercase tracking-[0.18em] mb-2" style={{ color: C.muted }}>
-              PIN (4+ digits)
-            </label>
-            <input type="password" inputMode="numeric" pattern="[0-9]*"
-              value={pin}
-              onChange={e => { setPin(e.target.value.replace(/[^0-9]/g, '')); setError(''); }}
-              placeholder="• • • •"
-              autoFocus
-              className="digital-readout w-full px-4 py-3 rounded-lg text-2xl text-center outline-none tracking-widest no-spin"
-              style={{ backgroundColor: C.paper, border: `1px solid ${C.gold}`, color: C.ink }} />
-          </div>
-          {creating && (
-            <div>
-              <label className="block text-[11px] uppercase tracking-[0.18em] mb-2" style={{ color: C.muted }}>
-                Confirm PIN
-              </label>
-              <input type="password" inputMode="numeric" pattern="[0-9]*"
-                value={confirm}
-                onChange={e => { setConfirm(e.target.value.replace(/[^0-9]/g, '')); setError(''); }}
-                placeholder="• • • •"
-                className="digital-readout w-full px-4 py-3 rounded-lg text-2xl text-center outline-none tracking-widest no-spin"
-                style={{ backgroundColor: C.paper, border: `1px solid ${C.line}`, color: C.ink }} />
-            </div>
-          )}
+          <input type="password" inputMode="numeric" pattern="[0-9]*" maxLength={4}
+            value={pin}
+            onChange={e => { setPin(e.target.value.replace(/[^0-9]/g, '').slice(0, 4)); setError(''); }}
+            placeholder="\u2022 \u2022 \u2022 \u2022"
+            autoFocus
+            className="digital-readout w-full px-4 py-4 rounded-lg text-3xl text-center outline-none no-spin"
+            style={{
+              backgroundColor: C.paper,
+              border: `2px solid ${error ? C.ruby : C.gold}`,
+              color: C.ink,
+              letterSpacing: '0.5em',
+              paddingLeft: '0.5em',
+            }} />
           {error && (
             <p className="text-xs text-center" style={{ color: C.ruby }}>{error}</p>
           )}
           <button onClick={submit}
             style={{ backgroundColor: C.ink, color: C.cream }}
             className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.98]">
-            {creating ? 'Create PIN \u2192' : 'Unlock Admin \u2192'}
+            Unlock Admin \u2192
           </button>
-          {!creating && (
-            <p className="text-[10px] text-center opacity-60" style={{ color: C.muted }}>
-              Forgot? Clear your browser storage for this site to reset.
-            </p>
-          )}
         </div>
       </div>
     </div>
@@ -4324,6 +4656,68 @@ function SyncOfferModal({ payload, onApply, onClose }) {
         Applying overwrites your current content. Export yours first if you want a backup.
       </p>
     </ModalShell>
+  );
+}
+
+function AdminSyncBar({ all }) {
+  const [status, setStatus] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error'
+  const [lastSaved, setLastSaved] = useState(null);
+  const cfg = getCloudCfg();
+
+  const save = async () => {
+    setStatus('saving');
+    try {
+      if (cfg) {
+        const keys = ['listings','live','moments','sponsors',
+          'buyerSteps','sellerSteps','investorSteps','programs',
+          'testimonials','wins','workshops','crm','team'];
+        const mapKey = (k) => k === 'live' ? 'liveConfig' : k;
+        for (const k of keys) {
+          await cloudWriteContent(k, all[mapKey(k)]);
+        }
+      }
+      setStatus('saved');
+      setLastSaved(new Date());
+      setTimeout(() => setStatus('idle'), 2000);
+      haptic('success');
+    } catch (e) {
+      setStatus('error');
+      setTimeout(() => setStatus('idle'), 3000);
+    }
+  };
+
+  const label = status === 'saving' ? 'Saving\u2026' :
+                status === 'saved' ? 'Saved \u2713' :
+                status === 'error' ? 'Save failed' :
+                cfg ? 'Auto-saving to cloud' : 'Saving locally only';
+  const color = status === 'saved' ? C.success :
+                status === 'error' ? C.ruby :
+                cfg ? C.gold : C.muted;
+
+  return (
+    <div className="px-4 py-2 flex items-center gap-2 sticky top-0 z-10"
+         style={{ backgroundColor: C.cream, borderBottom: `1px solid ${C.line}` }}>
+      <span className="w-2 h-2 rounded-full flex-shrink-0"
+            style={{ backgroundColor: color }} />
+      <span className="text-xs font-medium flex-1" style={{ color: C.ink }}>
+        {label}
+      </span>
+      {lastSaved && status === 'idle' && (
+        <span className="text-[10px]" style={{ color: C.muted }}>
+          Last: {lastSaved.toLocaleTimeString()}
+        </span>
+      )}
+      <button onClick={save} disabled={status === 'saving'}
+        style={{
+          backgroundColor: status === 'saved' ? C.success : C.ink,
+          color: C.cream,
+          opacity: status === 'saving' ? 0.6 : 1,
+        }}
+        className="px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1 active:scale-95 transition">
+        {status === 'saved' ? <CheckCircle2 size={12} /> : <Send size={11} />}
+        {status === 'saving' ? 'Saving' : status === 'saved' ? 'Saved' : 'Save all'}
+      </button>
+    </div>
   );
 }
 
@@ -4383,6 +4777,11 @@ function AdminCenter({
             <X size={16} />
           </button>
         </div>
+
+        {/* Sync status + Save All button */}
+        <AdminSyncBar all={{ listings, liveConfig, moments, sponsors,
+                            buyerSteps, sellerSteps, investorSteps,
+                            programs, testimonials, wins, workshops, team, crm }} />
 
         {/* Section tabs */}
         <div className="flex gap-1 overflow-x-auto p-2"
@@ -4595,6 +4994,19 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
                         onSave={(lead) => { const id = onAdd(lead); setFocusLeadId(id); setView('dashboard'); }} />;
   }
 
+  // Drip queue — computed from all leads
+  const dripQueue = useMemo(() => computeDripQueue(leads), [leads]);
+
+  // Mark a drip step done — logs an activity with the stepKey, so it won't reappear
+  const completeDripStep = (action) => {
+    onAddActivity(action.leadId, {
+      type: 'drip',
+      body: `[${action.campaignName}] ${action.step.title} \u2014 ${action.step.channel.toUpperCase()}`,
+      dripKey: action.stepKey,
+    });
+    haptic('success');
+  };
+
   // CSV export
   const exportCsv = () => {
     if (leads.length === 0) return;
@@ -4635,6 +5047,39 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
         <CrmStat label="This month" value={leadsThisMonth} small />
         <CrmStat label="Open tasks" value={openTasks} small />
       </div>
+
+      {/* Today's Outreach — drip queue */}
+      {dripQueue.length > 0 && (
+        <div className="rounded-2xl mb-5 overflow-hidden"
+             style={{ backgroundColor: C.ink, color: C.cream, border: `2px solid ${C.gold}` }}>
+          <div className="px-4 py-3 flex items-center justify-between"
+               style={{ borderBottom: `1px solid rgba(200,152,90,0.3)` }}>
+            <div className="flex items-center gap-2">
+              <Megaphone size={14} style={{ color: C.gold }} />
+              <p className="text-[11px] uppercase tracking-[0.18em] font-bold">
+                Today's Outreach
+              </p>
+            </div>
+            <span className="text-[10px] px-2 py-0.5 rounded-full font-bold"
+                  style={{ backgroundColor: C.gold, color: C.ink }}>
+              {dripQueue.length}
+            </span>
+          </div>
+          <div className="divide-y" style={{ borderColor: 'rgba(245,239,230,0.08)' }}>
+            {dripQueue.slice(0, 5).map(action => (
+              <DripActionRow key={`${action.leadId}-${action.stepKey}`}
+                action={action}
+                onOpen={() => setFocusLeadId(action.leadId)}
+                onComplete={() => completeDripStep(action)} />
+            ))}
+          </div>
+          {dripQueue.length > 5 && (
+            <p className="text-[11px] text-center py-2 opacity-70">
+              + {dripQueue.length - 5} more pending
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Search + Filters */}
       <div className="mb-3">
@@ -4698,6 +5143,73 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
           </AdminBtn>
         </div>
       )}
+    </div>
+  );
+}
+
+function DripActionRow({ action, onOpen, onComplete }) {
+  const { step, body, leadName, leadPhone, leadEmail, dueIn } = action;
+  const channelIcon = step.channel === 'call' ? Phone :
+                     step.channel === 'text' ? MessageSquare :
+                     step.channel === 'email' ? Mail :
+                     Clipboard;
+  const CI = channelIcon;
+
+  // Build action href based on channel + lead contact
+  const actionHref =
+    step.channel === 'call' && leadPhone ? `tel:${leadPhone}` :
+    step.channel === 'text' && leadPhone ? `sms:${leadPhone}?&body=${encodeURIComponent(body)}` :
+    step.channel === 'email' && leadEmail ? `mailto:${leadEmail}?subject=${encodeURIComponent(step.title)}&body=${encodeURIComponent(body)}` :
+    null;
+
+  const dueLabel = dueIn === 0 ? 'Today'
+    : dueIn < 0 ? `${Math.abs(dueIn)}d overdue`
+    : `In ${dueIn}d`;
+
+  return (
+    <div className="p-3">
+      <div className="flex items-start gap-3 mb-2">
+        <div className="w-8 h-8 rounded-full grid place-items-center flex-shrink-0"
+             style={{ backgroundColor: dueIn < 0 ? C.ruby : C.gold, color: C.ink }}>
+          <CI size={14} strokeWidth={2.4} />
+        </div>
+        <button onClick={onOpen} className="flex-1 min-w-0 text-left">
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-semibold truncate">{leadName}</p>
+            <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded"
+                  style={{ backgroundColor: dueIn < 0 ? C.ruby : 'rgba(200,152,90,0.3)',
+                           color: dueIn < 0 ? C.cream : C.gold }}>
+              {dueLabel}
+            </span>
+          </div>
+          <p className="text-[10px] opacity-60 uppercase tracking-wider mt-0.5">
+            {step.title} &middot; {action.campaignName}
+          </p>
+        </button>
+      </div>
+      <p className="text-xs leading-relaxed mb-2 italic opacity-90 line-clamp-2">
+        "{body}"
+      </p>
+      <div className="flex gap-1.5">
+        {actionHref ? (
+          <a href={actionHref} target={step.channel === 'email' ? undefined : undefined}
+             onClick={() => { /* don't auto-complete; user may want to redo */ }}
+             style={{ backgroundColor: C.gold, color: C.ink }}
+             className="flex-1 py-2 rounded-md text-xs font-semibold text-center flex items-center justify-center gap-1 active:scale-[0.98]">
+            <CI size={11} /> {step.channel.toUpperCase()}
+          </a>
+        ) : (
+          <span className="flex-1 py-2 rounded-md text-xs font-medium text-center opacity-60"
+                style={{ backgroundColor: 'rgba(255,255,255,0.08)' }}>
+            Manual action
+          </span>
+        )}
+        <button onClick={onComplete}
+          style={{ backgroundColor: C.success, color: C.cream }}
+          className="px-3 py-2 rounded-md text-xs font-semibold flex items-center gap-1 active:scale-[0.98]">
+          <CheckCircle2 size={12} /> Done
+        </button>
+      </div>
     </div>
   );
 }
@@ -5018,6 +5530,28 @@ function LeadDetail({ lead, onBack, onUpdate, onDelete, onAddActivity, onAddTask
                       onChange={v => setDraft({ ...draft, dealValue: Number(v) || 0 })} />
           <AdminInput label="Expected close date" type="date" value={draft.closeDate}
                       onChange={v => setDraft({ ...draft, closeDate: v })} />
+
+          {/* Life-event fields for drip */}
+          <p className="text-[10px] uppercase tracking-[0.2em] mt-4 mb-2" style={{ color: C.gold }}>
+            Relationship dates (power the drip campaigns)
+          </p>
+          <AdminInput label="Birthday" type="date" value={draft.birthday || ''}
+                      onChange={v => setDraft({ ...draft, birthday: v })} />
+          <AdminInput label="Home anniversary / move-in date" type="date" value={draft.moveInDate || ''}
+                      onChange={v => setDraft({ ...draft, moveInDate: v })} />
+          <AdminInput label="Spouse / partner name" value={draft.spouseName || ''}
+                      onChange={v => setDraft({ ...draft, spouseName: v })} />
+          <AdminInput label="Spouse birthday" type="date" value={draft.spouseBirthday || ''}
+                      onChange={v => setDraft({ ...draft, spouseBirthday: v })} />
+          <AdminSelect label="Preferred contact"
+                       value={draft.preferredContact || 'text'}
+                       onChange={v => setDraft({ ...draft, preferredContact: v })}
+                       options={[
+                         { value: 'text', label: 'Text' },
+                         { value: 'call', label: 'Call' },
+                         { value: 'email', label: 'Email' },
+                       ]} />
+
           <AdminTextArea label="Notes" rows={4} value={draft.notes}
                          onChange={v => setDraft({ ...draft, notes: v })} />
           <div className="flex gap-2 mt-3">
@@ -6066,7 +6600,7 @@ function DataPanel({ all, setAll, resetAll, onLock, getPin, setPin, clearPin }) 
         </label>
       </div>
 
-      {/* PIN management */}
+      {/* PIN info */}
       <div className="rounded-lg p-4 mb-3"
            style={{ backgroundColor: C.paper, border: `1px solid ${C.line}` }}>
         <p className="text-sm font-semibold mb-1" style={{ color: C.ink }}>
@@ -6074,12 +6608,9 @@ function DataPanel({ all, setAll, resetAll, onLock, getPin, setPin, clearPin }) 
             <Key size={13} style={{ color: C.gold }} /> Admin PIN
           </span>
         </p>
-        <p className="text-xs mb-3" style={{ color: C.muted }}>
-          {getPin() ? 'A PIN is set. Change or remove it here.' : 'No PIN set. Lock admin mode to set one on next unlock.'}
+        <p className="text-xs" style={{ color: C.muted }}>
+          PIN is locked to <strong className="digital-mono" style={{ color: C.ink }}>{ADMIN_PIN}</strong>. To change, a developer needs to edit <code className="digital-mono">ADMIN_PIN</code> in the code.
         </p>
-        <AdminBtn onClick={changePin} variant="primary">
-          {getPin() ? 'Change PIN' : 'Set PIN'}
-        </AdminBtn>
       </div>
 
       {/* Reset */}
