@@ -1,10 +1,7 @@
 /* The Lewis Team — service worker
-   Offline-first for app shell, network-first for everything else. */
-const CACHE = 'lewisteam-v3';
+   Strict network-first for HTML so clients never see a stale UI. */
+const CACHE = 'lewisteam-v5';
 const CORE = [
-  '/',
-  '/index.html',
-  '/manifest.webmanifest',
   '/brand/logo.png',
   '/brand/team-hero.jpg',
   '/brand/team-holiday.jpg',
@@ -30,33 +27,47 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-
-  // Only cache GET
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
   const isSameOrigin = url.origin === self.location.origin;
 
-  // For navigations: network first, fall back to cached index
-  if (request.mode === 'navigate') {
+  // HTML / navigations — ALWAYS network first. Never serve cached HTML.
+  // Only fall back to cache if the network totally fails (offline).
+  if (request.mode === 'navigate' ||
+      (request.headers.get('accept') || '').includes('text/html')) {
     event.respondWith(
-      fetch(request)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put('/', copy));
-          return res;
-        })
-        .catch(() => caches.match('/').then((r) => r || caches.match('/index.html')))
+      fetch(request, { cache: 'no-store' })
+        .catch(() => caches.match(request).then(r => r || new Response(
+          '<h1>Offline</h1><p>Reconnect to see The Lewis Team.</p>',
+          { headers: { 'Content-Type': 'text/html' } }
+        )))
     );
     return;
   }
 
-  // For static assets: cache first, fallback network, update cache in background
-  if (isSameOrigin) {
+  // Hashed JS/CSS bundles: cache-first (they change with every deploy via filename)
+  if (isSameOrigin && url.pathname.startsWith('/assets/')) {
+    event.respondWith(
+      caches.match(request).then((cached) =>
+        cached || fetch(request).then((res) => {
+          if (res && res.status === 200) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(request, copy));
+          }
+          return res;
+        })
+      )
+    );
+    return;
+  }
+
+  // Brand images: stale-while-revalidate
+  if (isSameOrigin && url.pathname.startsWith('/brand/')) {
     event.respondWith(
       caches.match(request).then((cached) => {
         const network = fetch(request).then((res) => {
-          if (res && res.status === 200 && res.type === 'basic') {
+          if (res && res.status === 200) {
             const copy = res.clone();
             caches.open(CACHE).then((c) => c.put(request, copy));
           }
