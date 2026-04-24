@@ -1433,6 +1433,41 @@ export default function App() {
     return () => { document.head.removeChild(link); };
   }, []);
 
+  // Android hardware back button — intercept popstate (Capacitor bridges hardware back → popstate)
+  const [backToast, setBackToast] = useState(false);
+  const _backLast = useRef(0);
+  const _sRef = useRef(screen), _tRef = useRef(activeTab);
+  const _mRef = useRef(modal), _oRef = useRef(openStep), _sdRef = useRef(shareData);
+  useEffect(() => { _sRef.current = screen; }, [screen]);
+  useEffect(() => { _tRef.current = activeTab; }, [activeTab]);
+  useEffect(() => { _mRef.current = modal; }, [modal]);
+  useEffect(() => { _oRef.current = openStep; }, [openStep]);
+  useEffect(() => { _sdRef.current = shareData; }, [shareData]);
+  useEffect(() => {
+    try { window.history.pushState({ lt: 1 }, ''); } catch {}
+    const onBack = () => {
+      const push = () => { try { window.history.pushState({ lt: 1 }, ''); } catch {} };
+      const s = _sRef.current, tab = _tRef.current;
+      const m = _mRef.current, step = _oRef.current, sd = _sdRef.current;
+      if (sd) { setShareData(null); push(); return; }
+      if (m) { setModal(null); push(); return; }
+      if (step) { setOpenStep(null); push(); return; }
+      if (s === 'portal') { setScreen('welcome'); push(); return; }
+      if (s === 'main' && tab !== 'home') { setActiveTab('home'); push(); return; }
+      if (s === 'main') {
+        if (Date.now() - _backLast.current < 2000) return; // second press → native exit
+        _backLast.current = Date.now();
+        setBackToast(true);
+        setTimeout(() => setBackToast(false), 2000);
+        push();
+        return;
+      }
+      // welcome screen — let native handle (exit)
+    };
+    window.addEventListener('popstate', onBack);
+    return () => window.removeEventListener('popstate', onBack);
+  }, []);
+
   const toggle = (setter) => (id) =>
     setter(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
 
@@ -1683,6 +1718,17 @@ export default function App() {
         <SyncOfferModal payload={syncOffer}
           onApply={() => applySyncPayload(syncOffer)}
           onClose={() => setSyncOffer(null)} />
+      )}
+      {backToast && (
+        <div style={{
+          position: 'fixed', bottom: 88, left: '50%', transform: 'translateX(-50%)',
+          backgroundColor: 'rgba(15,42,63,0.92)', color: '#F5EFE6',
+          padding: '10px 22px', borderRadius: 24, fontSize: 13, fontWeight: 600,
+          zIndex: 9999, pointerEvents: 'none', whiteSpace: 'nowrap',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+        }}>
+          Press back again to exit
+        </div>
       )}
       </div>
     </div>
@@ -4230,13 +4276,22 @@ function StatTile({ label, value }) {
 }
 
 function AgentCard({ agent }) {
+  const [imgFailed, setImgFailed] = useState(false);
   return (
     <div style={{ backgroundColor: C.paper, border: `1px solid ${C.line}` }}
          className="rounded-2xl p-4">
       <div className="flex items-start gap-4 mb-3">
-        <img src={agent.photoUrl} alt={agent.name}
-          className="w-16 h-16 rounded-full object-cover flex-shrink-0"
-          style={{ border: `2px solid ${C.gold}` }} />
+        {agent.photoUrl && !imgFailed ? (
+          <img src={agent.photoUrl} alt={agent.name}
+            className="w-16 h-16 rounded-full object-cover flex-shrink-0"
+            style={{ border: `2px solid ${C.gold}` }}
+            onError={() => setImgFailed(true)} />
+        ) : (
+          <div className="w-16 h-16 rounded-full flex-shrink-0 grid place-items-center text-2xl font-bold"
+               style={{ backgroundColor: C.gold, color: C.ink, border: `2px solid ${C.gold}` }}>
+            {(agent.name || '?').charAt(0).toUpperCase()}
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <p style={serif} className="text-lg leading-tight">{agent.name}</p>
           <p className="text-xs" style={{ color: C.muted }}>{agent.title}</p>
@@ -5369,6 +5424,9 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
     ? Math.round((closedLeads.length / leads.length) * 100) : 0;
   const openTasks = leads.reduce((n, l) => n + (l.tasks || []).filter(t => !t.done).length, 0);
 
+  // Drip queue — must be computed before any early return (rules of hooks)
+  const dripQueue = useMemo(() => computeDripQueue(leads), [leads]);
+
   // Lead detail view
   if (focusLead) {
     return <LeadDetail lead={focusLead} onBack={() => setFocusLeadId(null)}
@@ -5378,10 +5436,6 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
              onAddTask={(t) => onAddTask(focusLead.id, t)}
              onToggleTask={(id) => onToggleTask(focusLead.id, id)} />;
   }
-
-
-  // Drip queue — computed from all leads
-  const dripQueue = useMemo(() => computeDripQueue(leads), [leads]);
 
   // Mark a drip step done — logs an activity with the stepKey, so it won't reappear
   const completeDripStep = (action) => {
