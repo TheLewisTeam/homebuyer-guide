@@ -2147,7 +2147,8 @@ function HomeTab({ client, buyPct, sellPct, moments, liveConfig, programs, wins,
           </div>
         </div>
         <div className="flex gap-3 overflow-x-auto pb-2 -mx-5 px-5 snap-x snap-mandatory">
-          {activeWins.map(w => <WinCard key={w.id} win={w} />)}
+          {activeWins.map(w => <WinCard key={w.id} win={w}
+            onClick={() => onContact('contact:question')} />)}
         </div>
       </div>
 
@@ -2313,10 +2314,13 @@ function VideoCard({ video }) {
   );
 }
 
-function WinCard({ win }) {
+function WinCard({ win, onClick }) {
+  const cardProps = onClick
+    ? { onClick, role: 'button', tabIndex: 0, style: { backgroundColor: C.paper, border: `1px solid ${C.line}`, cursor: 'pointer' } }
+    : { style: { backgroundColor: C.paper, border: `1px solid ${C.line}` } };
   return (
-    <div className="snap-start flex-shrink-0 w-72 rounded-2xl overflow-hidden"
-         style={{ backgroundColor: C.paper, border: `1px solid ${C.line}` }}>
+    <div className="snap-start flex-shrink-0 w-72 rounded-2xl overflow-hidden active:scale-[0.98] transition"
+         {...cardProps}>
       <div className="relative h-44 overflow-hidden">
         <img src={win.photo} alt={win.badge} className="w-full h-full object-cover"
              style={{ objectPosition: 'center 30%' }} />
@@ -2337,6 +2341,12 @@ function WinCard({ win }) {
         <p className="text-[10px] uppercase tracking-wider" style={{ color: C.muted }}>
           {win.attribution}
         </p>
+        {onClick && (
+          <p className="text-[11px] mt-2 font-semibold inline-flex items-center gap-1"
+             style={{ color: C.gold }}>
+            Could this be you? <ArrowRight size={11} />
+          </p>
+        )}
       </div>
     </div>
   );
@@ -2582,8 +2592,10 @@ function LiveTab({ liveConfig, sponsors, onBack, onContact }) {
       </p>
       <div className="space-y-3 mb-6">
         {upcoming.map(show => (
-          <div key={show.id} className="rounded-2xl p-4 flex items-start gap-3"
-               style={{ backgroundColor: C.paper, border: `1px solid ${C.line}` }}>
+          <button key={show.id}
+            onClick={() => onContact('notify')}
+            className="w-full rounded-2xl p-4 flex items-start gap-3 text-left active:scale-[0.99] transition"
+            style={{ backgroundColor: C.paper, border: `1px solid ${C.line}` }}>
             <div className="w-11 h-11 rounded-xl grid place-items-center flex-shrink-0"
                  style={{ backgroundColor: C.ink, color: C.gold }}>
               <Calendar size={18} />
@@ -2597,8 +2609,12 @@ function LiveTab({ liveConfig, sponsors, onBack, onContact }) {
                   {show.topic}
                 </p>
               )}
+              <p className="text-[11px] mt-2 font-semibold inline-flex items-center gap-1"
+                 style={{ color: C.gold }}>
+                Remind me when live &rarr;
+              </p>
             </div>
-          </div>
+          </button>
         ))}
       </div>
 
@@ -3072,14 +3088,21 @@ function InstallPrompt() {
 }
 
 function BrandMomentCard({ moment, onShare }) {
-  const shareThis = () => onShare({
-    title: 'The Lewis Team',
-    text: moment.shareText,
-    url: typeof window !== 'undefined' ? window.location.origin + '/' : '',
-  });
+  const shareThis = (e) => {
+    if (e) e.stopPropagation();
+    onShare({
+      title: 'The Lewis Team',
+      text: moment.shareText,
+      url: typeof window !== 'undefined' ? window.location.origin + '/' : '',
+    });
+  };
   return (
     <div
-      className="snap-center flex-shrink-0 w-80 rounded-3xl p-6 relative overflow-hidden"
+      role="button"
+      tabIndex={0}
+      onClick={() => shareThis()}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') shareThis(); }}
+      className="snap-center flex-shrink-0 w-80 rounded-3xl p-6 relative overflow-hidden text-left active:scale-[0.98] transition cursor-pointer"
       style={{ background: moment.gradient, color: C.cream, minHeight: 320 }}>
       {/* Subtle logo watermark */}
       <div className="absolute top-4 left-5 flex items-center gap-1.5 opacity-90">
@@ -4008,8 +4031,10 @@ function TeamTab({ team, testimonials, wins, onContact }) {
       </p>
       <div className="space-y-3 mb-6">
         {activeWins.map(w => (
-          <div key={w.id} className="rounded-2xl overflow-hidden"
-               style={{ backgroundColor: C.paper, border: `1px solid ${C.line}` }}>
+          <button key={w.id}
+            onClick={() => onContact('contact:question')}
+            className="w-full rounded-2xl overflow-hidden text-left active:scale-[0.99] transition"
+            style={{ backgroundColor: C.paper, border: `1px solid ${C.line}` }}>
             <div className="relative h-44">
               <img src={w.photo} alt={w.badge} className="w-full h-full object-cover"
                    style={{ objectPosition: 'center 30%' }} />
@@ -4027,8 +4052,12 @@ function TeamTab({ team, testimonials, wins, onContact }) {
               <p className="text-[10px] uppercase tracking-wider" style={{ color: C.muted }}>
                 {w.attribution}
               </p>
+              <p className="text-[11px] mt-2 font-semibold inline-flex items-center gap-1"
+                 style={{ color: C.gold }}>
+                Let's write your story &rarr;
+              </p>
             </div>
-          </div>
+          </button>
         ))}
       </div>
 
