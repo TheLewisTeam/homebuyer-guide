@@ -2,6 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
+/* --- Desktop web optimization: frame the mobile-designed app on wide screens --- */
+.lt-shell {
+  background-color: #0F2A3F;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+}
+.lt-app {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+}
+@media (min-width: 640px) {
+  .lt-shell {
+    padding: 24px 16px;
+    background-image:
+      radial-gradient(circle at 20% 20%, rgba(200,152,90,0.12), transparent 45%),
+      radial-gradient(circle at 80% 80%, rgba(200,152,90,0.08), transparent 50%),
+      linear-gradient(180deg, #0F2A3F 0%, #0a1d2e 100%);
+    min-height: 100vh;
+  }
+  .lt-app {
+    border-radius: 28px;
+    overflow: hidden;
+    box-shadow:
+      0 20px 60px rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(200, 152, 90, 0.25);
+    max-height: calc(100vh - 48px);
+    overflow-y: auto;
+  }
+  /* Fixed bottom nav — constrain to app frame on desktop */
+  .lt-app nav.fixed {
+    position: sticky;
+    bottom: 0;
+    left: auto;
+    right: auto;
+  }
+}
+
 /* --- Native phone-app feel --- */
 html {
   -webkit-text-size-adjust: 100%;

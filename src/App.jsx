@@ -1223,7 +1223,9 @@ export default function App() {
   const sellPct = Math.round((sellCompleted.length / Math.max(1, sellerSteps.length)) * 100);
 
   return (
-    <div style={{ ...sans, backgroundColor: C.cream, minHeight: '100vh', color: C.charcoal }}>
+    <div style={{ ...sans, minHeight: '100vh' }} className="lt-shell">
+      <div style={{ backgroundColor: C.cream, color: C.charcoal, minHeight: '100vh' }}
+           className="lt-app relative">
       <TopBar
         onContact={setModal} onShare={openShare}
         adminMode={adminMode}
@@ -1354,6 +1356,7 @@ export default function App() {
           onApply={() => applySyncPayload(syncOffer)}
           onClose={() => setSyncOffer(null)} />
       )}
+      </div>
     </div>
   );
 }
@@ -1364,6 +1367,7 @@ export default function App() {
 
 function TopBar({ onContact, onShare, adminMode, onUnlockAdmin, onOpenAdmin }) {
   const tapRef = useRef({ count: 0, last: 0 });
+  const [flash, setFlash] = useState(0);
   const shareApp = () => onShare({
     title: 'The Lewis Team',
     text: "Let's Open Doors Together \uD83D\uDD11 Central Florida real estate with Realtor of the Year 2025 \u2014 The Lewis Team.",
@@ -1371,34 +1375,59 @@ function TopBar({ onContact, onShare, adminMode, onUnlockAdmin, onOpenAdmin }) {
   });
 
   const tapLogo = () => {
+    haptic('soft');
+    // If already unlocked, tap logo = open Admin instantly
+    if (adminMode) {
+      onOpenAdmin();
+      return;
+    }
     const now = Date.now();
     const t = tapRef.current;
-    if (now - t.last > 900) t.count = 0;
+    if (now - t.last > 1500) t.count = 0;
     t.last = now;
     t.count += 1;
-    if (t.count >= 5 && !adminMode) {
+    setFlash(t.count);
+    if (t.count >= 5) {
       t.count = 0;
       onUnlockAdmin();
     }
   };
 
   return (
-    <header style={{ backgroundColor: C.ink, color: C.cream }} className="px-5 pt-5 pb-4 sticky top-0 z-20">
-      <div className="flex items-center gap-3">
+    <header style={{ backgroundColor: C.ink, color: C.cream }} className="sticky top-0 z-20">
+      {/* Award banner — full width above logo row */}
+      <div className="text-center py-1.5 flex items-center justify-center gap-1.5"
+           style={{
+             background: `linear-gradient(90deg, ${C.goldDeep} 0%, ${C.gold} 50%, ${C.goldDeep} 100%)`,
+             color: C.ink,
+             borderBottom: `1px solid rgba(15,42,63,0.15)`,
+           }}>
+        <Trophy size={11} strokeWidth={2.5} />
+        <span className="text-[10px] font-bold uppercase tracking-[0.22em]">
+          Realtor of the Year 2025
+        </span>
+      </div>
+
+      {/* Main row */}
+      <div className="px-5 pt-4 pb-4 flex items-center gap-3">
         <button onClick={tapLogo}
-          className="w-10 h-10 rounded-lg grid place-items-center overflow-hidden"
-          style={{ backgroundColor: C.cream }}
+          className="w-11 h-11 rounded-lg grid place-items-center overflow-hidden relative transition"
+          style={{
+            backgroundColor: C.cream,
+            boxShadow: flash > 0 ? `0 0 0 ${Math.min(flash * 2, 10)}px rgba(200,152,90,${flash / 10})` : 'none',
+          }}
           aria-label="Home">
           <img src={AGENT.assets.logo} alt="The Lewis Team" className="w-8 h-8 object-contain" />
+          {flash > 0 && flash < 5 && !adminMode && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[9px] font-bold grid place-items-center"
+                  style={{ backgroundColor: C.gold, color: C.ink }}>
+              {flash}
+            </span>
+          )}
         </button>
         <div className="flex-1 min-w-0">
           <p style={serif} className="text-lg leading-tight truncate">{AGENT.teamName}</p>
-          <div className="flex items-center gap-1.5">
-            <Trophy size={10} style={{ color: C.gold }} />
-            <p className="text-[10px] uppercase tracking-[0.18em] opacity-80">
-              Realtor of the Year 2025
-            </p>
-          </div>
+          <p className="text-[10px] opacity-70 truncate">{AGENT.subTagline}</p>
         </div>
         {adminMode && (
           <button onClick={onOpenAdmin}
@@ -1472,7 +1501,9 @@ function Welcome({ onStart, onShare }) {
   }, []);
 
   return (
-    <div style={{ ...sans, backgroundColor: C.ink, minHeight: '100vh', color: C.cream }} className="flex flex-col">
+    <div style={{ ...sans }} className="lt-shell min-h-screen">
+      <div style={{ backgroundColor: C.ink, color: C.cream, minHeight: '100vh' }}
+           className="lt-app flex flex-col relative">
       {/* Landing HERO — full-bleed team image with layered intent */}
       <div className="relative">
         <img src={AGENT.assets.heroTeam} alt="Lancey and Stacy Lewis"
@@ -1558,6 +1589,7 @@ function Welcome({ onStart, onShare }) {
           Realtor of the Year 2025 &middot; HomeLife Realty Coastal Properties
         </p>
       </div>
+      </div>
     </div>
   );
 }
@@ -1615,7 +1647,9 @@ const PATHS = [
 
 function Portal({ onChoose, onBack, onShare }) {
   return (
-    <div style={{ ...sans, backgroundColor: C.ink, minHeight: '100vh', color: C.cream }} className="flex flex-col">
+    <div style={{ ...sans }} className="lt-shell min-h-screen">
+      <div style={{ backgroundColor: C.ink, color: C.cream, minHeight: '100vh' }}
+           className="lt-app flex flex-col relative">
       <div className="px-6 pt-10 pb-4 flex items-center justify-between">
         <button onClick={onBack}
           style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: C.cream, border: `1px solid rgba(255,255,255,0.15)` }}
@@ -1693,6 +1727,7 @@ function Portal({ onChoose, onBack, onShare }) {
             </button>
           );
         })}
+      </div>
       </div>
     </div>
   );
