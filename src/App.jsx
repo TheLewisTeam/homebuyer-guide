@@ -532,7 +532,7 @@ const WINS = [
   },
   {
     id: 'w_transformation',
-    photo: AGENT.assets.teamHoliday,
+    photo: AGENT.assets.heroTeam,
     badge: 'From Doubt to Owner',
     quote:
       "One of our clients came to us just two months ago unsure if homeownership was even possible. Today they're officially on their way to closing. That's the power of the right team, strategy, and guidance.",
@@ -661,7 +661,7 @@ const LIVE_CONFIG = {
       publishedLabel: 'Season 1, Ep 2',
       description:
         "A tight market update for Polk County — what's moving, what's sitting, and where buyers are finding the best concessions right now.",
-      poster: '/brand/team-holiday.jpg',
+      poster: '/brand/closing-day.jpg',
       src: '/brand/video/reel.mp4',
       ytUrl: '',
       notes: [
@@ -1475,9 +1475,9 @@ function Welcome({ onStart, onShare }) {
     <div style={{ ...sans, backgroundColor: C.ink, minHeight: '100vh', color: C.cream }} className="flex flex-col">
       {/* Landing HERO — full-bleed team image with layered intent */}
       <div className="relative">
-        <img src={AGENT.assets.teamHoliday} alt="Lancey and Stacy Lewis"
+        <img src={AGENT.assets.heroTeam} alt="Lancey and Stacy Lewis"
              className="absolute inset-0 w-full h-full object-cover"
-             style={{ objectPosition: '78% 40%' }} />
+             style={{ objectPosition: '50% 25%' }} />
         <div className="absolute inset-0"
              style={{ background: `linear-gradient(180deg, rgba(15,42,63,0.45) 0%, rgba(15,42,63,0.2) 35%, rgba(15,42,63,0.95) 85%)` }} />
         <div className="relative px-6 pt-10 pb-6" style={{ minHeight: 460 }}>
@@ -1747,9 +1747,9 @@ function HomeTab({ client, buyPct, sellPct, moments, liveConfig, programs, wins,
       {/* Hero card with team portrait — faces front and center */}
       <div className="rounded-3xl overflow-hidden relative"
            style={{ backgroundColor: C.ink, color: C.cream, border: `1px solid ${C.gold}` }}>
-        <img src={AGENT.assets.teamHoliday} alt="Lancey and Stacy Lewis"
+        <img src={AGENT.assets.heroTeam} alt="Lancey and Stacy Lewis"
              className="w-full h-72 object-cover"
-             style={{ objectPosition: '80% 40%' }} />
+             style={{ objectPosition: '50% 22%' }} />
         <div className="absolute inset-0 pointer-events-none"
              style={{ background: `linear-gradient(180deg, rgba(15,42,63,0.2) 0%, rgba(15,42,63,0) 30%, rgba(15,42,63,0.88) 100%)` }} />
         <div className="absolute top-4 left-4 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full"
@@ -2162,9 +2162,9 @@ function LiveTab({ liveConfig, sponsors, onBack, onContact }) {
       ) : (
         <div className="rounded-3xl overflow-hidden mb-4 relative"
              style={{ backgroundColor: C.ink, color: C.cream, border: `1px solid ${C.gold}` }}>
-          <img src="/brand/team-holiday.jpg" alt=""
+          <img src="/brand/team-hero.jpg" alt=""
                className="w-full h-56 object-cover opacity-40"
-               style={{ objectPosition: '80% 40%' }} />
+               style={{ objectPosition: '50% 25%' }} />
           <div className="absolute inset-0 p-6 flex flex-col justify-end">
             <p className="text-xs uppercase tracking-[0.22em] opacity-70 mb-1">
               {isLive ? 'Awaiting stream' : 'Tune in'}
