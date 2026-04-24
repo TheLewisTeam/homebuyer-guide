@@ -1202,11 +1202,11 @@ async function cloudTestConnection() {
 // Hardcoded admin PIN — change here if Lancey ever needs to update
 const ADMIN_PIN = '0428';
 
-// Resolve an icon — accepts a lucide component reference OR a string name from cloud-synced data.
-// Needed because JSON serialization strips functions; cloud-stored steps/programs lose icon references.
+// Resolve an icon — accepts a React component ref (function OR forwardRef object from lucide)
+// OR a string name (for cloud-synced data where JSON stripped the function).
 function resolveIcon(maybeIcon, fallback) {
-  if (!maybeIcon) return fallback || Clipboard;
-  if (typeof maybeIcon === 'function') return maybeIcon;
+  if (maybeIcon == null) return fallback || Clipboard;
+  // Strings need map lookup (cloud data)
   if (typeof maybeIcon === 'string') {
     const map = {
       Home, MapPin, Calculator, User, Phone, Mail, MessageSquare,
@@ -1221,7 +1221,8 @@ function resolveIcon(maybeIcon, fallback) {
     };
     return map[maybeIcon] || fallback || Clipboard;
   }
-  return fallback || Clipboard;
+  // Component (function, forwardRef object, memoized, etc.) — pass through
+  return maybeIcon;
 }
 
 // Haptic feedback — works on Android, silent on iOS Safari (no vibrate API)
