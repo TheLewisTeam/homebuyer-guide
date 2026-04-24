@@ -6086,12 +6086,39 @@ function LeadAddForm({ onSave, onCancel }) {
   );
 }
 
-function LeadDetail({ lead, onBack, onUpdate, onDelete, onAddActivity, onAddTask, onToggleTask }) {
+function LeadDetail({ lead: rawLead, onBack, onUpdate, onDelete, onAddActivity, onAddTask, onToggleTask }) {
+  // Defensive: normalize the lead so any missing / weirdly-shaped fields can't crash render
+  const lead = {
+    id: rawLead?.id || 'unknown',
+    name: typeof rawLead?.name === 'string' ? rawLead.name : '',
+    phone: typeof rawLead?.phone === 'string' ? rawLead.phone : '',
+    email: typeof rawLead?.email === 'string' ? rawLead.email : '',
+    type: typeof rawLead?.type === 'string' ? rawLead.type : 'other',
+    stage: typeof rawLead?.stage === 'string' ? rawLead.stage : 'new',
+    source: typeof rawLead?.source === 'string' ? rawLead.source : 'other',
+    address: typeof rawLead?.address === 'string' ? rawLead.address : '',
+    interests: typeof rawLead?.interests === 'string' ? rawLead.interests : '',
+    notes: typeof rawLead?.notes === 'string' ? rawLead.notes : '',
+    dealValue: Number(rawLead?.dealValue) || 0,
+    closeDate: typeof rawLead?.closeDate === 'string' ? rawLead.closeDate : '',
+    birthday: typeof rawLead?.birthday === 'string' ? rawLead.birthday : '',
+    spouseName: typeof rawLead?.spouseName === 'string' ? rawLead.spouseName : '',
+    spouseBirthday: typeof rawLead?.spouseBirthday === 'string' ? rawLead.spouseBirthday : '',
+    moveInDate: typeof rawLead?.moveInDate === 'string' ? rawLead.moveInDate : '',
+    preferredContact: typeof rawLead?.preferredContact === 'string' ? rawLead.preferredContact : 'text',
+    tags: Array.isArray(rawLead?.tags) ? rawLead.tags : [],
+    importantDates: Array.isArray(rawLead?.importantDates) ? rawLead.importantDates : [],
+    activities: Array.isArray(rawLead?.activities) ? rawLead.activities : [],
+    tasks: Array.isArray(rawLead?.tasks) ? rawLead.tasks : [],
+    createdAt: rawLead?.createdAt || new Date().toISOString(),
+    updatedAt: rawLead?.updatedAt || rawLead?.createdAt || new Date().toISOString(),
+  };
+
   const stage = CRM_STAGES.find(s => s.id === lead.stage) || CRM_STAGES[0];
   const [tab, setTab] = useState('overview');
   const [edit, setEdit] = useState(false);
   const [draft, setDraft] = useState(lead);
-  useEffect(() => { setDraft(lead); }, [lead.id]);
+  useEffect(() => { setDraft(lead); /* eslint-disable-next-line */ }, [lead.id]);
 
   const saveEdits = () => { onUpdate(draft); setEdit(false); };
 
@@ -6111,8 +6138,8 @@ function LeadDetail({ lead, onBack, onUpdate, onDelete, onAddActivity, onAddTask
     setNewTask(''); setNewTaskDate('');
   };
 
-  const openTasks = (lead.tasks || []).filter(t => !t.done);
-  const doneTasks = (lead.tasks || []).filter(t => t.done);
+  const openTasks = lead.tasks.filter(t => !t.done);
+  const doneTasks = lead.tasks.filter(t => t.done);
 
   return (
     <div>
