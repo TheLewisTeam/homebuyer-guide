@@ -2095,7 +2095,7 @@ function HomeTab({ client, buyPct, sellPct, moments, liveConfig, programs, wins,
           Quick actions
         </p>
         <div className="grid grid-cols-2 gap-3">
-          <QuickCard icon={Calendar} label="Schedule a showing"
+          <QuickCard icon={Calendar} label="Schedule consultation"
             onClick={() => onContact('contact:showing')} />
           <QuickCard icon={HandCoins} label="Get pre-approved"
             onClick={() => onContact('contact:preapproval')} />
