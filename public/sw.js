@@ -1,6 +1,6 @@
 /* The Lewis Team — service worker
    Offline-first for app shell, network-first for everything else. */
-const CACHE = 'lewisteam-v2';
+const CACHE = 'lewisteam-v3';
 const CORE = [
   '/',
   '/index.html',
