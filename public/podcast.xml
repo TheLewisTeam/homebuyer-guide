@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+     xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"
+     xmlns:content="http://purl.org/rss/1.0/modules/content/"
+     xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Open Doors Live — The Lewis Team</title>
+    <link>https://www.lewisteamrealestate.com/</link>
+    <atom:link href="https://www.lewisteamrealestate.com/podcast.xml" rel="self" type="application/rss+xml"/>
+    <language>en-us</language>
+    <copyright>© The Lewis Team · HomeLife Realty Coastal Properties</copyright>
+    <itunes:author>The Lewis Team (Lancey &amp; Stacy Lewis)</itunes:author>
+    <itunes:summary>A weekly live show covering Central Florida market moves, buyer + seller strategy, new construction deals, and honest Q&amp;A with the community. Produced by Realtor of the Year 2025 — The Lewis Team.</itunes:summary>
+    <description>A weekly live show covering Central Florida market moves, buyer + seller strategy, new construction deals, and honest Q&amp;A with the community. Produced by Realtor of the Year 2025 — The Lewis Team.</description>
+    <itunes:owner>
+      <itunes:name>The Lewis Team</itunes:name>
+      <itunes:email>LewisTeamHomelife@gmail.com</itunes:email>
+    </itunes:owner>
+    <itunes:image href="https://www.lewisteamrealestate.com/podcast-artwork.jpg"/>
+    <itunes:category text="Business">
+      <itunes:category text="Investing"/>
+    </itunes:category>
+    <itunes:category text="Education"/>
+    <itunes:explicit>false</itunes:explicit>
+    <itunes:type>episodic</itunes:type>
+
+    <!--
+      EPISODE TEMPLATE — duplicate this block for each new episode.
+      Required: enclosure url (the .mp3 or .mp4 URL), title, pubDate, guid.
+    -->
+    <item>
+      <title>Let's Open Doors Together — Meet The Lewis Team</title>
+      <itunes:episode>1</itunes:episode>
+      <itunes:season>1</itunes:season>
+      <itunes:episodeType>full</itunes:episodeType>
+      <description><![CDATA[
+        Meet The Lewis Team — Realtor of the Year 2025. We lay out our approach, our philosophy on generational wealth, and why we believe every family deserves a stress-free path to their keys.
+
+        Chapters:
+        0:00 Welcome + meet Lancey and Stacy
+        0:45 Why we do this: generational wealth
+        2:10 First-time buyer path
+        3:30 Hometown Heroes + Flex Cash explained
+        5:00 How to work with us
+
+        Resources:
+        · Florida Hometown Heroes DPA — https://www.floridahousing.org/
+        · Our main site — https://www.lewisteamrealestate.com/
+        · Book a free strategy call — tel:863-288-1772
+      ]]></description>
+      <pubDate>Wed, 23 Apr 2026 18:00:00 -0400</pubDate>
+      <enclosure url="https://www.lewisteamrealestate.com/brand/video/featured.mp4" length="50897570" type="video/mp4"/>
+      <guid isPermaLink="false">lewisteam-ep1</guid>
+      <itunes:duration>06:00</itunes:duration>
+      <itunes:explicit>false</itunes:explicit>
+    </item>
+
+    <item>
+      <title>Central Florida Market Moment</title>
+      <itunes:episode>2</itunes:episode>
+      <itunes:season>1</itunes:season>
+      <itunes:episodeType>full</itunes:episodeType>
+      <description><![CDATA[
+        A tight market update for Polk County — what's moving, what's sitting, and where buyers are finding the best concessions right now.
+
+        Chapters:
+        0:00 Quick intro
+        0:20 What's happening in Polk County
+        1:00 Builder incentives stacked high right now
+        1:45 Where to focus your search this month
+
+        Resources:
+        · D.R. Horton new construction — https://www.drhorton.com/
+        · Text us your search criteria — sms:863-288-1772
+      ]]></description>
+      <pubDate>Wed, 30 Apr 2026 18:00:00 -0400</pubDate>
+      <enclosure url="https://www.lewisteamrealestate.com/brand/video/reel.mp4" length="6859726" type="video/mp4"/>
+      <guid isPermaLink="false">lewisteam-ep2</guid>
+      <itunes:duration>02:30</itunes:duration>
+      <itunes:explicit>false</itunes:explicit>
+    </item>
+  </channel>
+</rss>

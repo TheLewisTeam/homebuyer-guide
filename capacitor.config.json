@@ -1,0 +1,36 @@
+{
+  "appId": "com.lewisteamrealestate.app",
+  "appName": "The Lewis Team",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "backgroundColor": "#0F2A3F",
+  "ios": {
+    "contentInset": "always",
+    "backgroundColor": "#0F2A3F",
+    "scheme": "The Lewis Team"
+  },
+  "android": {
+    "backgroundColor": "#0F2A3F",
+    "allowMixedContent": false,
+    "captureInput": true
+  },
+  "server": {
+    "androidScheme": "https",
+    "iosScheme": "https",
+    "cleartext": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "backgroundColor": "#0F2A3F",
+      "androidSplashResourceName": "splash",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#0F2A3F",
+      "overlaysWebView": false
+    }
+  }
+}

@@ -2,14 +2,80 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <!-- Primary brand / theme -->
+    <title>The Lewis Team — Let's Open Doors Together</title>
+    <meta name="description" content="Realtor of the Year 2025. The Lewis Team — Central Florida real estate for buyers, sellers, and investors. Your step-by-step path to the keys, generational wealth, and financial freedom." />
     <meta name="theme-color" content="#0F2A3F" />
-    <meta name="description" content="Your step-by-step path to the keys — The Lewis Team Homebuyer Guide." />
+    <meta name="color-scheme" content="light" />
+
+    <!-- Favicons + app icons -->
+    <link rel="icon" type="image/png" href="/brand/logo.png" />
+    <link rel="apple-touch-icon" href="/brand/logo.png" />
+    <link rel="mask-icon" href="/brand/logo.png" color="#C8985A" />
+
+    <!-- PWA manifest -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+
+    <!-- iOS "Add to Home Screen" tuning -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Lewis Team Guide" />
-    <title>Lewis Team Homebuyer Guide</title>
+    <meta name="apple-mobile-web-app-title" content="The Lewis Team" />
+
+    <!-- Prevent double-tap zoom + text size auto-adjust on iOS -->
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="HandheldFriendly" content="true" />
+
+    <!-- iOS splash screens (use the brand hero) -->
+    <link rel="apple-touch-startup-image" href="/brand/team-holiday.jpg" />
+
+    <!-- Open Graph — rich previews on Facebook, IG, LinkedIn, iMessage, Slack, WhatsApp -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="The Lewis Team" />
+    <meta property="og:title" content="The Lewis Team — Let's Open Doors Together" />
+    <meta property="og:description" content="Realtor of the Year 2025. Central Florida real estate for buyers, sellers, and investors. Your step-by-step path to the keys." />
+    <meta property="og:image" content="/brand/team-holiday.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Lancey and Stacy Lewis — The Lewis Team" />
+    <meta property="og:url" content="https://www.lewisteamrealestate.com/" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter / X -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="The Lewis Team — Let's Open Doors Together" />
+    <meta name="twitter:description" content="Realtor of the Year 2025. Central Florida real estate for buyers, sellers, and investors." />
+    <meta name="twitter:image" content="/brand/team-holiday.jpg" />
+
+    <!-- Structured data: Real estate agent -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "RealEstateAgent",
+      "name": "The Lewis Team",
+      "description": "Realtor of the Year 2025. Central Florida real estate for buyers, sellers, and investors.",
+      "image": "https://www.lewisteamrealestate.com/brand/team-holiday.jpg",
+      "url": "https://www.lewisteamrealestate.com/",
+      "telephone": "+1-863-288-1772",
+      "email": "LewisTeamHomelife@gmail.com",
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Winter Haven",
+        "addressRegion": "FL",
+        "postalCode": "33880",
+        "addressCountry": "US"
+      },
+      "areaServed": "Central Florida / Polk County",
+      "award": "Realtor of the Year 2025 — HomeLife Realty Coastal Properties",
+      "sameAs": [
+        "https://www.facebook.com/LewisTeamRealEstateFL",
+        "https://www.youtube.com/@LewisTeamRealEstate",
+        "https://www.tiktok.com/@stacylewisrealestate"
+      ]
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>

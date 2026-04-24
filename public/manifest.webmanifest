@@ -1,0 +1,27 @@
+{
+  "name": "The Lewis Team — Let's Open Doors Together",
+  "short_name": "Lewis Team",
+  "description": "Realtor of the Year 2025. Central Florida real estate for buyers, sellers, and investors. Your step-by-step path to the keys.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0F2A3F",
+  "theme_color": "#0F2A3F",
+  "categories": ["business", "real-estate", "lifestyle"],
+  "lang": "en-US",
+  "icons": [
+    {
+      "src": "/brand/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/brand/logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
