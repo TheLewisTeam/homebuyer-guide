@@ -1204,8 +1204,10 @@ const ADMIN_PIN = '0428';
 
 // Resolve an icon — accepts a React component ref (function OR forwardRef object from lucide)
 // OR a string name (for cloud-synced data where JSON stripped the function).
+// Guards against bad cloud data that serialized components as {} (empty objects).
 function resolveIcon(maybeIcon, fallback) {
-  if (maybeIcon == null) return fallback || Clipboard;
+  const fb = fallback || Clipboard;
+  if (maybeIcon == null) return fb;
   // Strings need map lookup (cloud data)
   if (typeof maybeIcon === 'string') {
     const map = {
@@ -1219,10 +1221,14 @@ function resolveIcon(maybeIcon, fallback) {
       PartyPopper, BadgeCheck, Target, Share2, Link2, Copy,
       Download, Smartphone, QrCode, Plus,
     };
-    return map[maybeIcon] || fallback || Clipboard;
+    return map[maybeIcon] || fb;
   }
-  // Component (function, forwardRef object, memoized, etc.) — pass through
-  return maybeIcon;
+  // Functions are components (React function components)
+  if (typeof maybeIcon === 'function') return maybeIcon;
+  // Objects: only valid React components have $$typeof (forwardRef, memo, etc.)
+  // Plain objects from JSON.parse don't → reject and fall back.
+  if (typeof maybeIcon === 'object' && maybeIcon.$$typeof) return maybeIcon;
+  return fb;
 }
 
 // Haptic feedback — works on Android, silent on iOS Safari (no vibrate API)
