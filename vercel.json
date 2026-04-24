@@ -4,7 +4,9 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
-    { "source": "/((?!api|brand|assets|.*\\..*).*)", "destination": "/index.html" }
+    { "source": "/communities/:slug", "destination": "/communities/:slug.html" },
+    { "source": "/communities", "destination": "/communities/index.html" },
+    { "source": "/((?!api|brand|assets|communities|.*\\..*).*)", "destination": "/index.html" }
   ],
   "headers": [
     {

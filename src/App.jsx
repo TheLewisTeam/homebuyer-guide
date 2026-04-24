@@ -1955,6 +1955,28 @@ function HomeTab({ client, buyPct, sellPct, moments, liveConfig, programs, wins,
           <ContactBtn icon={Mail} label="Email" href={`mailto:${AGENT.email}`} />
         </div>
       </div>
+
+      {/* Communities link — SEO landing pages */}
+      <a href="/communities"
+         style={{ backgroundColor: C.ink, color: C.cream, border: `1px solid ${C.gold}` }}
+         className="block rounded-2xl p-5 active:scale-[0.99] transition">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl grid place-items-center flex-shrink-0"
+               style={{ backgroundColor: C.gold, color: C.ink }}>
+            <MapPin size={20} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] uppercase tracking-[0.2em]" style={{ color: C.gold }}>
+              15 cities &middot; Polk County
+            </p>
+            <p style={serif} className="text-lg leading-tight">Explore communities</p>
+            <p className="text-xs opacity-80 mt-0.5">
+              Winter Haven, Lakeland, Haines City, Davenport &amp; more.
+            </p>
+          </div>
+          <ChevronRight size={18} style={{ color: C.gold }} />
+        </div>
+      </a>
     </div>
   );
 }

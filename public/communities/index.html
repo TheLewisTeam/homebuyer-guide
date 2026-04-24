@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Central Florida Communities | The Lewis Team</title>
+<meta name="description" content="Real estate communities we serve across Polk County: Winter Haven, Lakeland, Haines City, Davenport, Auburndale, and 10 more Central Florida cities.">
+<link rel="canonical" href="https://www.lewisteamrealestate.com/communities">
+<meta name="robots" content="index,follow">
+<meta name="theme-color" content="#0F2A3F">
+<link rel="icon" type="image/png" href="/brand/logo.png">
+
+<meta property="og:type" content="website">
+<meta property="og:title" content="Central Florida Communities | The Lewis Team">
+<meta property="og:description" content="15 Polk County cities we serve — Winter Haven, Lakeland, and more.">
+<meta property="og:image" content="/brand/team-hero.jpg">
+<meta property="og:url" content="https://www.lewisteamrealestate.com/communities">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --ink: #0F2A3F;
+    --gold: #C8985A;
+    --gold-deep: #A87A3F;
+    --cream: #F5EFE6;
+    --paper: #FBF7F0;
+    --charcoal: #2A2A2A;
+    --muted: #6B6256;
+    --line: #E4DCCC;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: var(--cream);
+    color: var(--charcoal);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 960px; margin: 0 auto; padding: 0 20px; }
+  .ribbon {
+    background: linear-gradient(90deg, var(--gold-deep), var(--gold), var(--gold-deep));
+    color: var(--ink);
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 8px 12px;
+  }
+  header.site {
+    background: var(--ink);
+    color: var(--cream);
+    padding: 16px 0;
+  }
+  header.site .inner { display: flex; align-items: center; gap: 14px; }
+  header.site .logo {
+    width: 44px; height: 44px; border-radius: 10px;
+    background: var(--cream); display: grid; place-items: center; overflow: hidden;
+  }
+  header.site .logo img { width: 34px; height: 34px; object-fit: contain; }
+  header.site .brand { flex: 1; }
+  header.site .brand .name {
+    font-family: 'Fraunces', Georgia, serif; font-size: 20px;
+  }
+  header.site .brand .sub {
+    font-size: 10px; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.15em;
+  }
+  header.site a.cta {
+    background: var(--gold);
+    color: var(--ink);
+    text-decoration: none;
+    padding: 9px 14px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .hero {
+    background: linear-gradient(135deg, var(--ink), var(--gold-deep));
+    color: var(--cream);
+    padding: 52px 0 44px;
+  }
+  .hero h1 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 500;
+    font-size: clamp(32px, 5vw, 48px);
+    margin: 10px 0;
+    line-height: 1.1;
+  }
+  .hero p { font-size: 17px; opacity: 0.9; max-width: 640px; }
+  .hero .eyebrow {
+    display: inline-block;
+    background: rgba(200,152,90,0.18);
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border-radius: 999px;
+  }
+
+  main.site { padding: 48px 0; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 14px;
+  }
+  .city {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px 18px 20px;
+    text-decoration: none;
+    color: var(--ink);
+    transition: transform 0.12s, box-shadow 0.2s;
+    display: block;
+  }
+  .city:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(15,42,63,0.1);
+  }
+  .city.published { border-color: var(--gold); }
+  .city h3 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 22px;
+    margin: 0 0 4px;
+  }
+  .city .zip {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .city .arrow {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--gold-deep);
+    font-weight: 600;
+  }
+  .city.coming { opacity: 0.5; cursor: not-allowed; }
+  .city.coming .arrow { color: var(--muted); }
+
+  footer.site {
+    background: var(--ink);
+    color: var(--cream);
+    padding: 32px 0;
+    text-align: center;
+    margin-top: 32px;
+  }
+  footer.site a { color: var(--gold); text-decoration: none; }
+  footer.site a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<div class="ribbon">🏆 Realtor of the Year 2025 · Serving all of Polk County</div>
+
+<header class="site">
+  <div class="container inner">
+    <a href="/" class="logo" aria-label="Home"><img src="/brand/logo.png" alt=""></a>
+    <div class="brand">
+      <div class="name">The Lewis Team</div>
+      <div class="sub">Communities</div>
+    </div>
+    <a class="cta" href="/">Open App</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="container">
+    <div class="eyebrow">Central Florida · Polk County</div>
+    <h1>15 cities we call home.</h1>
+    <p>Winter Haven to Lakeland, Haines City to Davenport — we live, work, and win for clients across every corner of Polk County. Pick your city to see the local market, top neighborhoods, and what it really costs to buy or sell there today.</p>
+  </div>
+</section>
+
+<main class="site">
+  <div class="container">
+    <div class="grid">
+
+      <a class="city published" href="/communities/winter-haven">
+        <h3>Winter Haven</h3>
+        <div class="zip">33880 · 33881 · 33884</div>
+        <div class="arrow">Explore →</div>
+      </a>
+
+      <div class="city coming">
+        <h3>Lakeland</h3>
+        <div class="zip">33801 · 33803 · 33813</div>
+        <div class="arrow">Coming soon</div>
+      </div>
+
+      <div class="city coming">
+        <h3>Haines City</h3>
+        <div class="zip">33844 · 33845</div>
+        <div class="arrow">Coming soon</div>
+      </div>
+
+      <div class="city coming">
+        <h3>Davenport</h3>
+        <div class="zip">33837 · 33896 · 33897</div>
+        <div class="arrow">Coming soon</div>
+      </div>
+
+      <div class="city coming">
+        <h3>Auburndale</h3>
+        <div class="zip">33823</div>
+        <div class="arrow">Coming soon</div>
+      </div>
+
+      <div class="city coming">
+        <h3>Bartow</h3>
+        <div class="zip">33830</div>
+        <div class="arrow">Coming soon</div>
+      </div>
+
+      <div class="city coming">
+        <h3>Lake Wales</h3>
+        <div class="zip">33853 · 33859</div>
+        <div class="arrow">Coming soon</div>
+      </div>
+
+      <div class="city coming">
+        <h3>Lake Alfred</h3>
+        <div class="zip">33850</div>
+        <div class="arrow">Coming soon</div>
+      </div>
+
+      <div class="city coming">
+        <h3>Dundee</h3>
+        <div class="zip">33838</div>
+        <div class="arrow">Coming soon</div>
+      </div>
+
+      <div class="city coming">
+        <h3>Eagle Lake</h3>
+        <div class="zip">33839</div>
+        <div class="arrow">Coming soon</div>
+      </div>
+
+      <div class="city coming">
+        <h3>Fort Meade</h3>
+        <div class="zip">33841</div>
+        <div class="arrow">Coming soon</div>
+      </div>
+
+      <div class="city coming">
+        <h3>Frostproof</h3>
+        <div class="zip">33843</div>
+        <div class="arrow">Coming soon</div>
+      </div>
+
+      <div class="city coming">
+        <h3>Highland Park</h3>
+        <div class="zip">Polk County</div>
+        <div class="arrow">Coming soon</div>
+      </div>
+
+      <div class="city coming">
+        <h3>Mulberry</h3>
+        <div class="zip">33860</div>
+        <div class="arrow">Coming soon</div>
+      </div>
+
+      <div class="city coming">
+        <h3>Polk City</h3>
+        <div class="zip">33868</div>
+        <div class="arrow">Coming soon</div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<footer class="site">
+  <div class="container">
+    <div style="margin-bottom:8px;">
+      <a href="tel:8632881772" style="font-family:'Fraunces',serif;font-size:20px;">(863) 288-1772</a>
+    </div>
+    <div style="font-size:13px;opacity:0.8;">The Lewis Team · HomeLife Realty Coastal Properties · <a href="/">Open the App</a></div>
+  </div>
+</footer>
+
+</body>
+</html>
