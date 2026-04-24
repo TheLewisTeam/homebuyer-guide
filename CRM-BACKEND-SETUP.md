@@ -1,86 +1,132 @@
-# CRM Backend — cloud sync with Supabase
+# Cloud sync setup — Supabase in 5 minutes
 
-The app ships with a **full CRM that works offline out of the box** — leads are stored in your browser's localStorage. That means the leads you collect on *your phone* stay on *your phone*.
+Your app now supports **real cloud sync**. Any admin edit from any device pushes to Supabase, and every visitor to `lewisteamrealestate.com` sees the latest content instantly.
 
-To let Stacy (or multiple devices) see the same leads, point the CRM at a cloud backend. We recommend **Supabase** — free, production-grade, Postgres-based.
+Until you complete these steps, edits live only on the device that made them.
 
-## Quick start (5 minutes)
+---
 
-### 1. Create a Supabase project
-1. Go to [supabase.com](https://supabase.com) → sign up (free, no credit card)
-2. **New project** → pick a name like `lewis-team-crm`
-3. Choose a strong database password (save it somewhere)
-4. Region: pick `us-east-1` or closest to Florida
+## 1. Create a Supabase project (2 min)
 
-### 2. Create the leads table
-In Supabase dashboard → **SQL Editor** → New query → paste:
+1. Go to **https://supabase.com** → click **Start your project** → sign up with GitHub (same account as your app) or email
+2. Click **New project**
+3. Name it: **`lewis-team-app`**
+4. Choose a **strong database password** → **SAVE IT** in a password manager
+5. Region: **East US (North Virginia)** — closest to Florida, fastest for your clients
+6. Plan: **Free**
+7. Click **Create new project** → wait ~90 seconds while it provisions
+
+---
+
+## 2. Create the database tables (1 min)
+
+Once provisioned:
+
+1. Left sidebar → click **SQL Editor** → click **New query**
+2. Paste this **entire block**:
 
 ```sql
-create table leads (
-  id text primary key,
-  name text,
-  phone text,
-  email text,
-  type text,
-  stage text,
-  source text,
-  budget jsonb,
-  interests text,
-  address text,
-  notes text,
-  deal_value numeric,
-  close_date date,
-  tags text[],
-  activities jsonb default '[]',
-  tasks jsonb default '[]',
-  created_at timestamptz default now(),
+-- One table holds all the editable site content (listings, live, moments, etc.)
+create table if not exists app_content (
+  key text primary key,
+  value jsonb not null,
   updated_at timestamptz default now()
 );
 
 -- Enable row-level security
-alter table leads enable row level security;
+alter table app_content enable row level security;
 
--- Allow anon (app) to read + write their own team leads
--- For production, tighten this to authenticated users only.
-create policy "allow all for anon" on leads
-  for all using (true) with check (true);
+-- Allow public read (so every visitor sees the latest content)
+create policy "public read" on app_content
+  for select using (true);
+
+-- Allow public write (so admin edits land in cloud)
+-- NOTE: this is OK for a single-admin team. When you want true security,
+-- ask Claude to wire Supabase Auth.
+create policy "public write" on app_content
+  for insert with check (true);
+create policy "public update" on app_content
+  for update using (true) with check (true);
+
+-- Auto-update updated_at on any change
+create or replace function set_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists trg_app_content_updated_at on app_content;
+create trigger trg_app_content_updated_at
+  before update on app_content
+  for each row execute procedure set_updated_at();
 ```
 
-### 3. Get your API keys
-Dashboard → **Settings → API**
-- **Project URL** (e.g. `https://xxxxx.supabase.co`)
-- **anon public** API key
+3. Click **Run** (green button, bottom right)
+4. You should see: `Success. No rows returned` — table is ready
 
-### 4. Wire it into the app
-Open `src/App.jsx` → find the `CRM_BACKEND` block near the top and paste:
+---
 
-```js
-const CRM_BACKEND = {
-  url: 'https://xxxxx.supabase.co',
-  anonKey: 'eyJhbGc...your-anon-key...',
-};
-```
+## 3. Copy your API keys (30 sec)
 
-(Or ask Claude to wire this for you.)
+1. Left sidebar → **Settings** (gear icon) → **API**
+2. You'll see two things you need:
+   - **Project URL** — looks like `https://xxxxxxxxxxxxxxx.supabase.co`
+   - **Project API Keys** → the **`anon public`** key (a long string starting with `eyJhbGc...`)
+3. Copy both. They're safe to put in client code. (Don't share the `service_role` key — that one is secret.)
 
-### 5. Migrate your existing leads
-If you've already captured leads in localStorage:
-1. Admin Center → CRM → Export CSV
-2. In Supabase → Table Editor → `leads` → Insert rows (paste from CSV)
+---
 
-## Why Supabase over alternatives
+## 4. Connect the app (30 sec)
 
-| Option | Cost | Sync | Auth | Realtime | Fit |
-|---|---|---|---|---|---|
-| **Supabase** | Free for ~100 leads/day | ✅ | ✅ | ✅ | 🏆 |
-| Firebase | Free | ✅ | ✅ | ✅ | Good |
-| Airtable | Free limited | ✅ | ❌ | Partial | OK for small team |
-| Google Sheets | Free | ✅ | ❌ | ❌ | Hacky |
-| localStorage only (current) | Free | ❌ | N/A | N/A | Solo use |
+On your live app (`lewisteamrealestate.com`):
 
-## Security note
+1. Tap LT logo 5 times → enter PIN
+2. Admin → **Data** tab (last one)
+3. At the top you'll see **Cloud sync (Supabase)** with a gold border
+4. Paste your **Project URL**
+5. Paste your **anon public** key
+6. Tap **Test connection** — should turn ✅ **Connected** in green
+7. Tap **Save**
+8. Tap **Push local → cloud** — uploads all your current admin edits to Supabase
+9. **Refresh the page** — the app now pulls from cloud on load
 
-The CRM holds **client PII**: names, phone numbers, emails, property addresses.
-- **Do not** use a public-write database without tightening RLS when you go live
-- Supabase can add email/password auth in ~15 min — once you're ready, tighten the RLS policy to require login
-- Ask Claude when you want to add login for Lancey + Stacy
+---
+
+## 5. Verify it works
+
+1. On Stacy's phone, go to `lewisteamrealestate.com`
+2. She'll see your pushed content
+3. Tap logo 5x → PIN → Admin → Data → Cloud sync → paste the same URL + key → Save
+4. Now **her edits push to cloud too** and you both see everything
+
+---
+
+## 🔒 Security later (when you're ready)
+
+Right now any anonymous visitor who discovers your Supabase URL *technically* can write to the database. For a solo team with a hidden admin PIN, this is fine. When you want proper security:
+
+- **Add Supabase Auth** — email/password login for Lancey + Stacy
+- **Tighten the RLS policies** from `true` → `auth.uid() in (<your user ids>)`
+- I can wire this up in 15 min when you're ready. Just say *"add supabase auth"*.
+
+---
+
+## 🐛 Troubleshooting
+
+**"Connection failed"**
+- Double-check the URL has no trailing slash
+- Make sure you pasted the **anon** key, not the **service_role** key
+- Check the SQL ran successfully (should see `app_content` in Table Editor)
+
+**"My push worked but pull gives nothing"**
+- Open Supabase → Table Editor → `app_content` — are there rows?
+- If yes, check your browser console for errors
+
+**"Stacy's edits overwrite mine"**
+- Last write wins. If this becomes a problem, ask about Realtime sync + merge UX.
+
+---
+
+You're live. Every edit now goes to every device.

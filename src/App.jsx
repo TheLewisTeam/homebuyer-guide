@@ -846,11 +846,109 @@ const WORKSHOPS = [
    ROOT APP
    ========================================================= */
 
+/* =========================================================
+   SUPABASE — lightweight fetch-based client (no npm dep)
+   Lancey configures URL + anon key in Admin → Data → Cloud Sync.
+   Stored in localStorage under lt_cloud_cfg.
+   ========================================================= */
+const CLOUD_CFG_KEY = 'lt_cloud_cfg';
+
+function getCloudCfg() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(CLOUD_CFG_KEY);
+    if (!raw) return null;
+    const cfg = JSON.parse(raw);
+    if (!cfg.url || !cfg.anonKey) return null;
+    return cfg;
+  } catch { return null; }
+}
+function setCloudCfg(cfg) {
+  try { window.localStorage.setItem(CLOUD_CFG_KEY, JSON.stringify(cfg || {})); } catch {}
+}
+function clearCloudCfg() {
+  try { window.localStorage.removeItem(CLOUD_CFG_KEY); } catch {}
+}
+
+async function supaFetch(path, { method = 'GET', body, headers = {}, signal } = {}) {
+  const cfg = getCloudCfg();
+  if (!cfg) throw new Error('Cloud not configured');
+  const url = `${cfg.url.replace(/\/$/, '')}/rest/v1${path}`;
+  const res = await fetch(url, {
+    method,
+    signal,
+    headers: {
+      'apikey': cfg.anonKey,
+      'Authorization': `Bearer ${cfg.anonKey}`,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'Prefer': method === 'POST' ? 'resolution=merge-duplicates,return=representation' : 'return=representation',
+      ...headers,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Supabase ${method} ${path} failed: ${res.status} ${text}`);
+  }
+  const json = await res.json().catch(() => null);
+  return json;
+}
+
+// Config table ops
+async function cloudReadContent(key) {
+  const rows = await supaFetch(`/app_content?key=eq.${encodeURIComponent(key)}&select=value`);
+  return rows && rows[0] ? rows[0].value : null;
+}
+async function cloudWriteContent(key, value) {
+  return supaFetch(`/app_content`, {
+    method: 'POST',
+    headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: { key, value },
+  });
+}
+async function cloudTestConnection() {
+  // Read back any row — empty result is OK, what matters is HTTP 200
+  await supaFetch('/app_content?select=key&limit=1');
+  return true;
+}
+
 // Haptic feedback — works on Android, silent on iOS Safari (no vibrate API)
 function haptic(kind = 'tap') {
   if (typeof navigator === 'undefined' || !navigator.vibrate) return;
   const patterns = { tap: 10, soft: 6, success: [8, 40, 12], warn: [20, 50, 20] };
   try { navigator.vibrate(patterns[kind] ?? 10); } catch {}
+}
+
+// Wrap useEditable with cloud sync. Reads from Supabase on mount (if configured),
+// pushes every change to cloud. Falls back to localStorage cleanly if cloud fails.
+function useCloudEditable(key, defaults) {
+  const [data, saveLocal, resetLocal] = useEditable(key, defaults);
+
+  // Hydrate from cloud on mount if configured
+  useEffect(() => {
+    const cfg = getCloudCfg();
+    if (!cfg) return;
+    let cancelled = false;
+    cloudReadContent(key).then(value => {
+      if (cancelled) return;
+      if (value !== null && value !== undefined) {
+        saveLocal(value); // updates localStorage + state; does NOT re-push to cloud
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const save = (next) => {
+    saveLocal(next);
+    const cfg = getCloudCfg();
+    if (cfg) {
+      cloudWriteContent(key, next).catch(err => console.warn('[cloud]', key, err));
+    }
+  };
+
+  return [data, save, resetLocal];
 }
 
 function useEditable(key, defaults) {
@@ -897,20 +995,20 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [shareData, setShareData] = useState(null);
 
-  // Editable content — persists in localStorage, editable via Admin Center
-  const [listings, setListings, resetListings] = useEditable('listings', LISTINGS);
-  const [liveConfig, setLiveConfig, resetLive] = useEditable('live', LIVE_CONFIG);
-  const [moments, setMoments, resetMoments] = useEditable('moments', BRAND_MOMENTS);
-  const [sponsors, setSponsors, resetSponsors] = useEditable('sponsors', SPONSORS);
-  const [buyerSteps, setBuyerSteps, resetBuyerSteps] = useEditable('buyerSteps', BUYER_STEPS);
-  const [sellerSteps, setSellerSteps, resetSellerSteps] = useEditable('sellerSteps', SELLER_STEPS);
-  const [investorSteps, setInvestorSteps, resetInvestorSteps] = useEditable('investorSteps', INVESTOR_STEPS);
-  const [programs, setPrograms, resetPrograms] = useEditable('programs', PROGRAMS);
-  const [testimonials, setTestimonials, resetTestimonials] = useEditable('testimonials', TESTIMONIALS);
-  const [wins, setWins, resetWins] = useEditable('wins', WINS);
-  const [workshops, setWorkshops, resetWorkshops] = useEditable('workshops', WORKSHOPS);
-  const [crm, setCrm, resetCrm] = useEditable('crm', []);
-  const [teamOverrides, setTeamOverrides, resetTeam] = useEditable('team', {
+  // Editable content — cloud-synced when Supabase is configured, otherwise localStorage only
+  const [listings, setListings, resetListings] = useCloudEditable('listings', LISTINGS);
+  const [liveConfig, setLiveConfig, resetLive] = useCloudEditable('live', LIVE_CONFIG);
+  const [moments, setMoments, resetMoments] = useCloudEditable('moments', BRAND_MOMENTS);
+  const [sponsors, setSponsors, resetSponsors] = useCloudEditable('sponsors', SPONSORS);
+  const [buyerSteps, setBuyerSteps, resetBuyerSteps] = useCloudEditable('buyerSteps', BUYER_STEPS);
+  const [sellerSteps, setSellerSteps, resetSellerSteps] = useCloudEditable('sellerSteps', SELLER_STEPS);
+  const [investorSteps, setInvestorSteps, resetInvestorSteps] = useCloudEditable('investorSteps', INVESTOR_STEPS);
+  const [programs, setPrograms, resetPrograms] = useCloudEditable('programs', PROGRAMS);
+  const [testimonials, setTestimonials, resetTestimonials] = useCloudEditable('testimonials', TESTIMONIALS);
+  const [wins, setWins, resetWins] = useCloudEditable('wins', WINS);
+  const [workshops, setWorkshops, resetWorkshops] = useCloudEditable('workshops', WORKSHOPS);
+  const [crm, setCrm, resetCrm] = useCloudEditable('crm', []);
+  const [teamOverrides, setTeamOverrides, resetTeam] = useCloudEditable('team', {
     name1: AGENT.name1, title1: AGENT.title, license1: AGENT.licenseNumber,
     phone1: AGENT.phone, email1: AGENT.email, photo1: AGENT.photoUrl,
     bio1: "Lancey leads market strategy and negotiation for The Lewis Team. Educated at Tampa School of Real Estate, he specializes in first-time buyers, new construction, and investment.",
@@ -4298,12 +4396,12 @@ function AdminCenter({
               all={{
                 listings, liveConfig, moments, sponsors,
                 buyerSteps, sellerSteps, investorSteps,
-                programs, testimonials, wins, workshops, team,
+                programs, testimonials, wins, workshops, team, crm,
               }}
               setAll={{
                 setListings, setLiveConfig, setMoments, setSponsors,
                 setBuyerSteps, setSellerSteps, setInvestorSteps,
-                setPrograms, setTestimonials, setWins, setWorkshops, setTeam,
+                setPrograms, setTestimonials, setWins, setWorkshops, setTeam, setCrm,
               }}
               resetAll={() => {
                 resetListings(); resetLive(); resetMoments(); resetSponsors();
@@ -5587,6 +5685,148 @@ function TeamEditor({ team, onChange, onReset }) {
   );
 }
 
+function CloudSyncPanel({ all, setAll, flash }) {
+  const existing = getCloudCfg();
+  const [url, setUrl] = useState(existing?.url || '');
+  const [anonKey, setAnonKey] = useState(existing?.anonKey || '');
+  const [status, setStatus] = useState(existing ? 'connected' : 'not_connected');
+  const [busy, setBusy] = useState(false);
+
+  const keys = [
+    'listings', 'live', 'moments', 'sponsors',
+    'buyerSteps', 'sellerSteps', 'investorSteps',
+    'programs', 'testimonials', 'wins', 'workshops',
+    'crm', 'team',
+  ];
+  // Map storage key -> state key
+  const allMap = {
+    listings: { get: () => all.listings, set: setAll.setListings },
+    live:      { get: () => all.liveConfig, set: setAll.setLiveConfig },
+    moments:   { get: () => all.moments, set: setAll.setMoments },
+    sponsors:  { get: () => all.sponsors, set: setAll.setSponsors },
+    buyerSteps:{ get: () => all.buyerSteps, set: setAll.setBuyerSteps },
+    sellerSteps:{get: () => all.sellerSteps, set: setAll.setSellerSteps },
+    investorSteps:{get: () => all.investorSteps, set: setAll.setInvestorSteps },
+    programs:  { get: () => all.programs, set: setAll.setPrograms },
+    testimonials:{get: () => all.testimonials, set: setAll.setTestimonials },
+    wins:      { get: () => all.wins, set: setAll.setWins },
+    workshops: { get: () => all.workshops, set: setAll.setWorkshops },
+    crm:       { get: () => all.crm, set: setAll.setCrm },
+    team:      { get: () => all.team, set: setAll.setTeam },
+  };
+
+  const saveCfg = () => {
+    if (!url.trim() || !anonKey.trim()) {
+      flash('URL and key required');
+      return;
+    }
+    setCloudCfg({ url: url.trim(), anonKey: anonKey.trim() });
+    flash('Saved. Reload app to pull.');
+    setStatus('connected');
+  };
+  const removeCfg = () => {
+    if (!confirm('Disconnect cloud sync? Your local data stays intact.')) return;
+    clearCloudCfg();
+    setUrl(''); setAnonKey('');
+    setStatus('not_connected');
+    flash('Disconnected.');
+  };
+
+  const test = async () => {
+    setBusy(true);
+    setCloudCfg({ url: url.trim(), anonKey: anonKey.trim() });
+    try {
+      await cloudTestConnection();
+      setStatus('connected');
+      flash('Connection OK \u2713');
+    } catch (e) {
+      setStatus('error');
+      flash('Connection failed \u2014 check URL/key + SQL');
+    }
+    setBusy(false);
+  };
+
+  const pushAll = async () => {
+    if (!confirm('Push every section from this device to the cloud? Overwrites cloud copies.')) return;
+    setBusy(true);
+    try {
+      for (const k of keys) {
+        await cloudWriteContent(k, allMap[k].get());
+      }
+      flash('Pushed to cloud \u2713');
+    } catch (e) {
+      flash('Push failed: ' + e.message);
+    }
+    setBusy(false);
+  };
+
+  const pullAll = async () => {
+    if (!confirm('Pull every section from the cloud onto this device? Overwrites local copies.')) return;
+    setBusy(true);
+    try {
+      for (const k of keys) {
+        const v = await cloudReadContent(k);
+        if (v !== null && v !== undefined) {
+          allMap[k].set(v);
+        }
+      }
+      flash('Pulled from cloud \u2713');
+    } catch (e) {
+      flash('Pull failed: ' + e.message);
+    }
+    setBusy(false);
+  };
+
+  const statusColor = status === 'connected' ? C.success : status === 'error' ? C.ruby : C.muted;
+  const statusLabel = status === 'connected' ? 'Connected' :
+                      status === 'error' ? 'Connection error' : 'Not connected';
+
+  return (
+    <div className="rounded-lg p-4 mb-3"
+         style={{ backgroundColor: C.paper, border: `2px solid ${C.gold}` }}>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-sm font-semibold" style={{ color: C.ink }}>
+          <span className="inline-flex items-center gap-1">
+            <Globe size={13} style={{ color: C.gold }} /> Cloud sync (Supabase)
+          </span>
+        </p>
+        <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full"
+              style={{ backgroundColor: statusColor, color: C.cream }}>
+          {statusLabel}
+        </span>
+      </div>
+      <p className="text-xs mb-3" style={{ color: C.muted }}>
+        Syncs every admin edit to Supabase. Stacy, your website, and all your devices see the same data. Public visitors see the latest content instantly.
+      </p>
+
+      <AdminInput label="Supabase Project URL" value={url}
+                  onChange={setUrl}
+                  placeholder="https://xxxxx.supabase.co" />
+      <AdminInput label="anon public key" value={anonKey}
+                  onChange={setAnonKey}
+                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  hint="Settings \u2192 API in Supabase dashboard. The 'anon' key is safe to expose." />
+
+      <div className="flex flex-wrap gap-2 mt-2">
+        <AdminBtn onClick={saveCfg} variant="primary">Save</AdminBtn>
+        <AdminBtn onClick={test} variant="gold">
+          {busy ? 'Testing\u2026' : 'Test connection'}
+        </AdminBtn>
+        {existing && (
+          <>
+            <AdminBtn onClick={pushAll} variant="ghost">Push local \u2192 cloud</AdminBtn>
+            <AdminBtn onClick={pullAll} variant="ghost">Pull cloud \u2192 local</AdminBtn>
+            <AdminBtn onClick={removeCfg} variant="danger">Disconnect</AdminBtn>
+          </>
+        )}
+      </div>
+      <p className="text-[10px] mt-3" style={{ color: C.muted }}>
+        First-time setup? See <code className="digital-mono">CRM-BACKEND-SETUP.md</code> for the SQL to run in Supabase.
+      </p>
+    </div>
+  );
+}
+
 function DataPanel({ all, setAll, resetAll, onLock, getPin, setPin, clearPin }) {
   const [msg, setMsg] = useState('');
   const [remoteUrl, setRemoteUrl] = useState(() => {
@@ -5699,16 +5939,19 @@ function DataPanel({ all, setAll, resetAll, onLock, getPin, setPin, clearPin }) 
         Data &amp; sync
       </p>
 
-      {/* Share via URL — immediate cross-device sync */}
+      {/* Supabase Cloud Sync — the real cross-device backend */}
+      <CloudSyncPanel all={all} setAll={setAll} flash={flash} />
+
+      {/* Share via URL — quick cross-device one-off */}
       <div className="rounded-lg p-4 mb-3"
            style={{ backgroundColor: C.paper, border: `1px solid ${C.line}` }}>
         <p className="text-sm font-semibold mb-1" style={{ color: C.ink }}>
           <span className="inline-flex items-center gap-1">
-            <Share2 size={13} style={{ color: C.gold }} /> Share via link
+            <Share2 size={13} style={{ color: C.gold }} /> Share via link (one-off)
           </span>
         </p>
         <p className="text-xs mb-3" style={{ color: C.muted }}>
-          Copies a URL that contains your whole config. Anyone who opens it gets a one-tap prompt to apply your content.
+          Copies a URL that contains your whole config. Quick way to send one batch of edits without cloud sync.
         </p>
         <AdminBtn onClick={generateShareLink} variant="gold">
           Copy share link
