@@ -1202,6 +1202,28 @@ async function cloudTestConnection() {
 // Hardcoded admin PIN — change here if Lancey ever needs to update
 const ADMIN_PIN = '0428';
 
+// Resolve an icon — accepts a lucide component reference OR a string name from cloud-synced data.
+// Needed because JSON serialization strips functions; cloud-stored steps/programs lose icon references.
+function resolveIcon(maybeIcon, fallback) {
+  if (!maybeIcon) return fallback || Clipboard;
+  if (typeof maybeIcon === 'function') return maybeIcon;
+  if (typeof maybeIcon === 'string') {
+    const map = {
+      Home, MapPin, Calculator, User, Phone, Mail, MessageSquare,
+      CheckCircle2, Circle, ArrowRight, ArrowLeft, X, ChevronRight,
+      FileText, Calendar, DollarSign, Key, Search, BookOpen,
+      Send, Sparkles, Clipboard, HandCoins, Handshake, Award,
+      Star, TrendingUp, Building2, Heart, ShoppingBag, Wrench,
+      Users, Trophy, Gift, Banknote, Briefcase, ListChecks,
+      Instagram, Youtube, Facebook, Globe, Megaphone, HomeIcon,
+      PartyPopper, BadgeCheck, Target, Share2, Link2, Copy,
+      Download, Smartphone, QrCode, Plus,
+    };
+    return map[maybeIcon] || fallback || Clipboard;
+  }
+  return fallback || Clipboard;
+}
+
 // Haptic feedback — works on Android, silent on iOS Safari (no vibrate API)
 function haptic(kind = 'tap') {
   if (typeof navigator === 'undefined' || !navigator.vibrate) return;
@@ -1768,7 +1790,7 @@ function BottomNav({ activeTab, setActiveTab }) {
       className="fixed bottom-0 left-0 right-0 z-20 grid grid-cols-7">
       {tabs.map(tab => {
         const active = activeTab === tab.id;
-        const Icon = tab.icon;
+        const Icon = resolveIcon(tab.icon, Circle);
         return (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
             style={{ color: active ? C.ink : C.muted }}
@@ -1981,7 +2003,7 @@ function Portal({ onChoose, onBack, onShare }) {
 
       <div className="px-6 pb-8 space-y-3 flex-1">
         {PATHS.map(p => {
-          const Icon = p.icon;
+          const Icon = resolveIcon(p.icon, Key);
           const accentBg =
             p.accent === 'gold' ? `linear-gradient(135deg, ${C.ink}, ${C.goldDeep})` :
             p.accent === 'success' ? `linear-gradient(135deg, #1a3d2d, ${C.ink}, #4A7C59)` :
@@ -3038,7 +3060,7 @@ function ShareMenu({ data, onClose }) {
       {/* Share targets */}
       <div className="grid grid-cols-2 gap-2">
         {targets.map(t => {
-          const Icon = t.icon;
+          const Icon = resolveIcon(t.icon, MessageSquare);
           return (
             <a key={t.id} href={t.href}
                target={t.id === 'sms' || t.id === 'email' ? undefined : '_blank'}
@@ -3260,7 +3282,7 @@ function BrandMomentsCarousel({ onShare, onMore, moments }) {
 }
 
 function ProgramCard({ program, onClick }) {
-  const Icon = program.icon;
+  const Icon = resolveIcon(program.icon, Gift);
   return (
     <button onClick={onClick}
       style={{ backgroundColor: C.paper, border: `1px solid ${C.line}` }}
@@ -3298,7 +3320,7 @@ function JourneyTab({ title, eyebrow, steps, completed, toggle, openStep, setOpe
         {steps.map((step, idx) => {
           const done = completed.includes(step.id);
           const open = openStep === step.id;
-          const Icon = step.icon;
+          const Icon = resolveIcon(step.icon, Key);
           return (
             <div key={step.id}
               style={{ backgroundColor: C.paper, border: `1px solid ${done ? C.gold : C.line}` }}
@@ -3977,7 +3999,7 @@ function ProgramsView({ programs, onBack, onContact }) {
 
       <div className="space-y-4">
         {list.map(p => {
-          const Icon = p.icon;
+          const Icon = resolveIcon(p.icon, Gift);
           return (
             <div key={p.id} className="rounded-2xl p-5"
                  style={{ backgroundColor: C.paper, border: `1px solid ${C.line}` }}>
