@@ -837,6 +837,76 @@ const DRIP_CAMPAIGNS = [
   },
 ];
 
+// When was this lead last actually contacted? (call/text/email/meeting/showing counts; system notes don't)
+function lastContactedInfo(lead) {
+  const acts = (lead.activities || []).filter(a =>
+    ['call', 'text', 'email', 'meeting', 'showing', 'drip'].includes(a.type)
+  );
+  if (acts.length === 0) {
+    return { date: null, daysAgo: null, label: 'Never contacted', status: 'never' };
+  }
+  const latest = acts.reduce((best, a) =>
+    !best || new Date(a.createdAt) > new Date(best.createdAt) ? a : best, null);
+  const d = new Date(latest.createdAt);
+  const days = Math.floor((Date.now() - d.getTime()) / 86400000);
+  let status = 'fresh';
+  if (days === 0) status = 'fresh';
+  else if (days <= 14) status = 'warm';
+  else if (days <= 30) status = 'cool';
+  else if (days <= 90) status = 'stale';
+  else status = 'cold';
+
+  const label =
+    days === 0 ? 'Today' :
+    days === 1 ? 'Yesterday' :
+    days < 7 ? `${days}d ago` :
+    days < 30 ? `${Math.floor(days / 7)}w ago` :
+    days < 365 ? `${Math.floor(days / 30)}mo ago` :
+    `${Math.floor(days / 365)}y ago`;
+
+  return { date: d, daysAgo: days, label, status };
+}
+
+// Pre-written nurture message templates — one tap fills an iMessage/email
+const NURTURE_TEMPLATES = [
+  {
+    id: 'check_in',
+    title: 'Just checking in',
+    channel: 'text',
+    body: "Hey {first}, just thinking of you today. How's everything going? \u2013 Lancey, Lewis Team",
+  },
+  {
+    id: 'market_update',
+    title: 'Market value check',
+    channel: 'text',
+    body: "Hey {first}, your neighborhood's shifted since we last talked. Want a quick no-pressure value estimate? \u2013 Lancey",
+  },
+  {
+    id: 'referral_ask',
+    title: 'Referral ask',
+    channel: 'text',
+    body: "Hey {first}, hope you're loving your home. If you know anyone thinking about buying or selling, we'd be grateful for an introduction. Referrals are how we grow. \u2013 Lancey + Stacy",
+  },
+  {
+    id: 'holiday',
+    title: 'Holiday / seasonal',
+    channel: 'text',
+    body: "Hope you and the family are doing well, {first}! Wishing you a great week \u2013 The Lewis Team \uD83D\uDC9B",
+  },
+  {
+    id: 'home_anniv',
+    title: 'Home anniversary',
+    channel: 'text',
+    body: "Hey {first}, can't believe how fast time flies! Anniversary coming up \u2013 want the current value of your home? \u2013 Lancey",
+  },
+  {
+    id: 'reconnect',
+    title: "It's been a while",
+    channel: 'email',
+    body: "Hi {first},\n\nIt's been a little while since we connected. Just wanted to check in \u2014 anything new in your world? Real estate side of things has been busy; happy to share what we're seeing if it's useful.\n\nTalk soon,\nLancey & Stacy\nThe Lewis Team",
+  },
+];
+
 // Compute all pending drip actions across all leads as of today
 function computeDripQueue(leads, today = new Date()) {
   const queue = [];
@@ -5034,6 +5104,8 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
   const [filterStage, setFilterStage] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [filterSource, setFilterSource] = useState('all');
+  const [nurtureFilterOn, setNurtureFilterOn] = useState(false);
+  const [nurtureLeadId, setNurtureLeadId] = useState(null);
 
   const focusLead = leads.find(l => l.id === focusLeadId) || null;
 
@@ -5047,6 +5119,11 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
     if (filterStage !== 'all' && l.stage !== filterStage) return false;
     if (filterType !== 'all' && l.type !== filterType) return false;
     if (filterSource !== 'all' && l.source !== filterSource) return false;
+    if (nurtureFilterOn) {
+      const last = lastContactedInfo(l);
+      // Show "needs nurture": never contacted, or last contact > 30 days
+      if (!(last.status === 'never' || last.status === 'stale' || last.status === 'cold')) return false;
+    }
     if (search) {
       const q = search.toLowerCase();
       const haystack = [l.name, l.email, l.phone, l.address, l.notes, l.interests]
@@ -5055,6 +5132,29 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
     }
     return true;
   });
+
+  // Sort nurture-filtered leads by oldest contact first
+  if (nurtureFilterOn) {
+    filtered.sort((a, b) => {
+      const da = lastContactedInfo(a).daysAgo ?? Infinity;
+      const db = lastContactedInfo(b).daysAgo ?? Infinity;
+      return db - da;
+    });
+  }
+
+  const needsNurtureCount = leads.filter(l => {
+    const last = lastContactedInfo(l);
+    return last.status === 'never' || last.status === 'stale' || last.status === 'cold';
+  }).length;
+
+  // Log a quick contact — called when user taps Call/Text/Email in the lead row
+  const logQuickContact = (leadId, channel) => {
+    onAddActivity(leadId, {
+      type: channel,
+      body: `Quick ${channel} from CRM list`,
+    });
+    haptic('tap');
+  };
 
   // Dashboard stats
   const activeStages = ['new', 'contacted', 'qualified', 'showing', 'offer', 'under_contract'];
@@ -5176,7 +5276,7 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
           placeholder="Search name, phone, email, address, notes..."
           style={{ backgroundColor: C.cream, border: `1px solid ${C.line}`, color: C.charcoal }}
           className="w-full px-3 py-2.5 rounded-lg text-sm outline-none mb-2" />
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="grid grid-cols-3 gap-1.5 mb-2">
           <select value={filterStage} onChange={e => setFilterStage(e.target.value)}
             style={{ backgroundColor: C.cream, border: `1px solid ${C.line}`, color: C.charcoal }}
             className="px-2 py-1.5 rounded text-[11px] outline-none">
@@ -5196,6 +5296,19 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
             {CRM_SOURCES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
           </select>
         </div>
+        {/* Nurture filter */}
+        <button onClick={() => setNurtureFilterOn(!nurtureFilterOn)}
+          style={{
+            backgroundColor: nurtureFilterOn ? C.gold : C.paper,
+            color: nurtureFilterOn ? C.ink : C.ink,
+            border: `1px solid ${nurtureFilterOn ? C.gold : C.line}`,
+          }}
+          className="w-full py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition">
+          <Heart size={12} fill={nurtureFilterOn ? C.ink : 'none'} />
+          {nurtureFilterOn
+            ? `Showing ${needsNurtureCount} needing nurture`
+            : `Nurture \u2014 ${needsNurtureCount} clients need check-in`}
+        </button>
       </div>
 
       {/* Lead list */}
@@ -5204,7 +5317,11 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
       </p>
       <div className="space-y-2">
         {filtered.map(lead => (
-          <LeadCard key={lead.id} lead={lead} onOpen={() => setFocusLeadId(lead.id)} />
+          <LeadCard key={lead.id} lead={lead}
+            onOpen={() => setFocusLeadId(lead.id)}
+            onLogContact={(channel) => logQuickContact(lead.id, channel)}
+            onNurture={() => setNurtureLeadId(lead.id)}
+          />
         ))}
         {leads.length === 0 && (
           <div className="rounded-lg p-6 text-center"
@@ -5232,7 +5349,94 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
           </AdminBtn>
         </div>
       )}
+
+      {/* Nurture picker modal */}
+      {nurtureLeadId && (
+        <NurturePicker
+          lead={leads.find(l => l.id === nurtureLeadId)}
+          onSend={(template) => {
+            const lead = leads.find(l => l.id === nurtureLeadId);
+            if (lead) {
+              onAddActivity(lead.id, {
+                type: template.channel,
+                body: `Nurture [${template.title}] sent`,
+              });
+            }
+            setNurtureLeadId(null);
+          }}
+          onClose={() => setNurtureLeadId(null)}
+        />
+      )}
     </div>
+  );
+}
+
+function NurturePicker({ lead, onSend, onClose }) {
+  if (!lead) return null;
+  const first = (lead.name || 'there').split(' ')[0];
+
+  const openMessage = (template) => {
+    const body = template.body.replace('{first}', first);
+    let href = '#';
+    if (template.channel === 'text' && lead.phone) {
+      href = `sms:${lead.phone}?&body=${encodeURIComponent(body)}`;
+    } else if (template.channel === 'email' && lead.email) {
+      href = `mailto:${lead.email}?subject=${encodeURIComponent('Thinking of you')}&body=${encodeURIComponent(body)}`;
+    } else if (lead.phone) {
+      href = `sms:${lead.phone}?&body=${encodeURIComponent(body)}`;
+    } else if (lead.email) {
+      href = `mailto:${lead.email}?subject=${encodeURIComponent('Thinking of you')}&body=${encodeURIComponent(body)}`;
+    }
+    // Open + log
+    if (typeof window !== 'undefined') {
+      window.location.href = href;
+    }
+    onSend(template);
+  };
+
+  return (
+    <ModalShell
+      title={`Nurture ${first}`}
+      sub="Pick a message. We'll pre-fill it and open your Messages / Mail app so you can tap Send."
+      onClose={onClose}>
+      <div className="space-y-2">
+        {NURTURE_TEMPLATES.map(tpl => {
+          const cantSend = (tpl.channel === 'text' && !lead.phone) ||
+                           (tpl.channel === 'email' && !lead.email);
+          const preview = tpl.body.replace('{first}', first);
+          return (
+            <button key={tpl.id}
+              onClick={() => !cantSend && openMessage(tpl)}
+              disabled={cantSend}
+              style={{
+                backgroundColor: C.paper,
+                border: `1px solid ${C.line}`,
+                opacity: cantSend ? 0.5 : 1,
+                cursor: cantSend ? 'not-allowed' : 'pointer',
+              }}
+              className="w-full p-3 rounded-lg text-left active:scale-[0.99] transition">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-sm font-semibold" style={{ color: C.ink }}>
+                  {tpl.title}
+                </p>
+                <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded"
+                      style={{ backgroundColor: C.gold, color: C.ink }}>
+                  {tpl.channel}
+                </span>
+              </div>
+              <p className="text-xs italic line-clamp-2" style={{ color: C.charcoal }}>
+                "{preview}"
+              </p>
+              {cantSend && (
+                <p className="text-[10px] mt-1" style={{ color: C.ruby }}>
+                  {tpl.channel === 'text' ? 'No phone on file' : 'No email on file'}
+                </p>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </ModalShell>
   );
 }
 
@@ -5318,52 +5522,124 @@ function CrmStat({ label, value, gold, small }) {
   );
 }
 
-function LeadCard({ lead, onOpen }) {
+function LeadCard({ lead, onOpen, onLogContact, onNurture }) {
   const stage = CRM_STAGES.find(s => s.id === lead.stage) || CRM_STAGES[0];
   const type = CRM_TYPES.find(t => t.id === lead.type) || CRM_TYPES[CRM_TYPES.length - 1];
   const openTasks = (lead.tasks || []).filter(t => !t.done).length;
+  const lastContact = lastContactedInfo(lead);
   const lastActivity = (lead.activities || [])[0];
 
+  const lastBadgeColor =
+    lastContact.status === 'fresh' ? C.success :
+    lastContact.status === 'warm'  ? C.success :
+    lastContact.status === 'cool'  ? C.gold :
+    lastContact.status === 'stale' ? C.goldDeep :
+    lastContact.status === 'cold'  ? C.ruby :
+                                     C.muted;
+
+  const contact = (channel, e) => {
+    e.stopPropagation();
+    if (onLogContact) onLogContact(channel);
+  };
+
   return (
-    <button onClick={onOpen}
-      style={{ backgroundColor: C.paper, border: `1px solid ${C.line}` }}
-      className="w-full rounded-lg p-3 text-left active:scale-[0.99] transition">
-      <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-full grid place-items-center flex-shrink-0 text-sm font-bold"
-             style={{ backgroundColor: stage.color, color: '#fff' }}>
-          {(lead.name || '?').charAt(0).toUpperCase()}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold truncate" style={{ color: C.ink }}>
-              {lead.name || '(no name)'}
-            </p>
-            <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
-                  style={{ backgroundColor: stage.color, color: '#fff' }}>
-              {stage.label}
-            </span>
+    <div style={{ backgroundColor: C.paper, border: `1px solid ${C.line}` }}
+         className="rounded-lg overflow-hidden">
+      {/* Clickable main body */}
+      <button onClick={onOpen}
+        className="w-full p-3 text-left active:scale-[0.99] transition">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-full grid place-items-center flex-shrink-0 text-sm font-bold"
+               style={{ backgroundColor: stage.color, color: '#fff' }}>
+            {(lead.name || '?').charAt(0).toUpperCase()}
           </div>
-          <p className="text-[11px] truncate" style={{ color: C.muted }}>
-            {type.label} &middot; {lead.phone || lead.email || 'no contact'}
-          </p>
-          {lastActivity && (
-            <p className="text-[11px] mt-1 truncate italic" style={{ color: C.charcoal }}>
-              {lastActivity.body}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-sm font-semibold truncate" style={{ color: C.ink }}>
+                {lead.name || '(no name)'}
+              </p>
+              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                    style={{ backgroundColor: stage.color, color: '#fff' }}>
+                {stage.label}
+              </span>
+            </div>
+            <p className="text-[11px] truncate" style={{ color: C.muted }}>
+              {type.label} &middot; {lead.phone || lead.email || 'no contact'}
             </p>
-          )}
-        </div>
-        <div className="text-right flex-shrink-0">
-          {openTasks > 0 && (
-            <span className="inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-full mb-1"
-                  style={{ backgroundColor: C.gold, color: C.ink }}>
-              {openTasks} task{openTasks > 1 ? 's' : ''}
+            {lastActivity && (
+              <p className="text-[11px] mt-1 truncate italic" style={{ color: C.charcoal }}>
+                {lastActivity.body}
+              </p>
+            )}
+          </div>
+          <div className="text-right flex-shrink-0 flex flex-col gap-1">
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap"
+                  style={{ backgroundColor: lastBadgeColor, color: C.cream }}>
+              {lastContact.label}
             </span>
-          )}
-          <p className="text-[10px]" style={{ color: C.muted }}>
-            {new Date(lead.updatedAt || lead.createdAt).toLocaleDateString()}
-          </p>
+            {openTasks > 0 && (
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap"
+                    style={{ backgroundColor: C.gold, color: C.ink }}>
+                {openTasks} task{openTasks > 1 ? 's' : ''}
+              </span>
+            )}
+          </div>
         </div>
+      </button>
+
+      {/* Quick contact row */}
+      <div className="grid grid-cols-4 gap-px" style={{ borderTop: `1px solid ${C.line}` }}>
+        <QuickContactBtn
+          icon={Phone}
+          label="Call"
+          href={lead.phone ? `tel:${lead.phone}` : null}
+          disabled={!lead.phone}
+          onTap={(e) => contact('call', e)}
+        />
+        <QuickContactBtn
+          icon={MessageSquare}
+          label="Text"
+          href={lead.phone ? `sms:${lead.phone}` : null}
+          disabled={!lead.phone}
+          onTap={(e) => contact('text', e)}
+        />
+        <QuickContactBtn
+          icon={Mail}
+          label="Email"
+          href={lead.email ? `mailto:${lead.email}` : null}
+          disabled={!lead.email}
+          onTap={(e) => contact('email', e)}
+        />
+        <QuickContactBtn
+          icon={Heart}
+          label="Nurture"
+          onClick={(e) => { e.stopPropagation(); onNurture && onNurture(); }}
+          gold
+        />
       </div>
+    </div>
+  );
+}
+
+function QuickContactBtn({ icon: Icon, label, href, onClick, onTap, disabled, gold }) {
+  const bg = gold ? 'rgba(200,152,90,0.15)' : 'transparent';
+  const color = disabled ? C.muted : (gold ? C.goldDeep : C.ink);
+  const style = { backgroundColor: bg, color, opacity: disabled ? 0.4 : 1 };
+  const className = "flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium active:scale-[0.98] transition";
+  const handleClick = (e) => { if (onTap) onTap(e); if (onClick) onClick(e); };
+  if (disabled) {
+    return <div style={style} className={className}><Icon size={14} />{label}</div>;
+  }
+  if (href) {
+    return (
+      <a href={href} onClick={handleClick} style={style} className={className}>
+        <Icon size={14} />{label}
+      </a>
+    );
+  }
+  return (
+    <button onClick={handleClick} style={style} className={className}>
+      <Icon size={14} />{label}
     </button>
   );
 }
