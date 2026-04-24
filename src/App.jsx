@@ -1536,6 +1536,46 @@ export default function App() {
     return lead.id;
   };
 
+  // Batch import — adds all partials in ONE setCrm call so they all survive.
+  // captureLead called N times in a loop loses all but the last (stale closure).
+  const captureLeadsMany = (partials) => {
+    const base = Date.now();
+    const now = new Date(base).toISOString();
+    const newLeads = partials.map((partial, i) => ({
+      id: `lead_${base}_${i}_${Math.floor(Math.random() * 1000)}`,
+      name: partial.name || '',
+      phone: partial.phone || '',
+      email: partial.email || '',
+      type: partial.type || 'other',
+      stage: partial.stage || 'new',
+      source: partial.source || 'app_contact',
+      budget: partial.budget || null,
+      interests: partial.interests || '',
+      address: partial.address || '',
+      notes: partial.notes || '',
+      dealValue: partial.dealValue || 0,
+      closeDate: partial.closeDate || '',
+      tags: partial.tags || [],
+      birthday: partial.birthday || '',
+      spouseName: partial.spouseName || '',
+      spouseBirthday: partial.spouseBirthday || '',
+      moveInDate: partial.moveInDate || '',
+      importantDates: partial.importantDates || [],
+      preferredContact: partial.preferredContact || '',
+      consent: partial.consent || false,
+      activities: [{
+        id: `a_${base}_${i}`,
+        type: 'system',
+        body: `Lead created from ${(CRM_SOURCES.find(s => s.id === (partial.source || 'app_contact'))?.label) || 'app'}.`,
+        createdAt: now,
+      }],
+      tasks: [],
+      createdAt: now,
+      updatedAt: now,
+    }));
+    setCrm([...newLeads, ...(crm || [])]);
+  };
+
   const updateLead = (id, patch) => {
     const now = new Date().toISOString();
     setCrm((crm || []).map(l => l.id === id ? { ...l, ...patch, updatedAt: now } : l));
@@ -1691,7 +1731,7 @@ export default function App() {
           crm={crm} setCrm={setCrm} resetCrm={resetCrm}
           updateLead={updateLead} deleteLead={deleteLead}
           addActivity={addActivity} addTask={addTask} toggleTask={toggleTask}
-          captureLead={captureLead}
+          captureLead={captureLead} captureLeadsMany={captureLeadsMany}
           listings={listings} setListings={setListings} resetListings={resetListings}
           liveConfig={liveConfig} setLiveConfig={setLiveConfig} resetLive={resetLive}
           moments={moments} setMoments={setMoments} resetMoments={resetMoments}
@@ -5068,7 +5108,7 @@ function AdminSyncBar({ all }) {
 function AdminCenter({
   adminMode, onLock, onClose,
   crm, setCrm, resetCrm,
-  updateLead, deleteLead, addActivity, addTask, toggleTask, captureLead,
+  updateLead, deleteLead, addActivity, addTask, toggleTask, captureLead, captureLeadsMany,
   listings, setListings, resetListings,
   liveConfig, setLiveConfig, resetLive,
   moments, setMoments, resetMoments,
@@ -5151,6 +5191,7 @@ function AdminCenter({
             <CrmPanel
               leads={crm || []}
               onAdd={captureLead}
+              onAddMany={captureLeadsMany}
               onUpdate={updateLead}
               onDelete={deleteLead}
               onAddActivity={addActivity}
@@ -5282,7 +5323,7 @@ function AdminBtn({ children, onClick, variant = 'primary', className = '' }) {
 /* =========================================================
    CRM PANEL — dashboard, pipeline, lead detail, activity log
    ========================================================= */
-function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, onToggleTask, onReset }) {
+function CrmPanel({ leads, onAdd, onAddMany, onUpdate, onDelete, onAddActivity, onAddTask, onToggleTask, onReset }) {
   const [view, setView] = useState('dashboard');
   const [focusLeadId, setFocusLeadId] = useState(null);
   const [search, setSearch] = useState('');
@@ -5310,18 +5351,16 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
       imported.push(c);
     }
     if (!confirm(`Import ${imported.length} contacts from your Matrix CSV?\n(${skipped.length} duplicates skipped.)`)) return;
-    imported.forEach(c => {
-      onAdd({
-        name: c.name,
-        phone: c.phone,
-        email: c.email,
-        type: 'other',
-        stage: 'new',
-        source: 'mls_import',
-        tags: ['mls_matrix'],
-        notes: 'Imported from MLS Matrix CSV.',
-      });
-    });
+    onAddMany(imported.map(c => ({
+      name: c.name,
+      phone: c.phone,
+      email: c.email,
+      type: 'other',
+      stage: 'new',
+      source: 'mls_import',
+      tags: ['mls_matrix'],
+      notes: 'Imported from MLS Matrix CSV.',
+    })));
     setImportMsg(`\u2713 Imported ${imported.length} contacts${skipped.length ? ` (${skipped.length} dupes skipped)` : ''}`);
     setTimeout(() => setImportMsg(''), 4000);
     haptic('success');
@@ -5337,7 +5376,8 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
         const rows = parseCsv(reader.result);
         if (!rows.length) { alert('CSV is empty.'); return; }
         const existingEmails = new Set(leads.map(l => (l.email || '').toLowerCase()).filter(Boolean));
-        let added = 0, dupes = 0;
+        const toAdd = [];
+        let dupes = 0;
         for (const r of rows) {
           const name = [r.name_first, r.name_middle, r.name_last].filter(Boolean).join(' ').trim()
                     || r.name || r.full_name || '(no name)';
@@ -5346,15 +5386,10 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
           if (name === '.' || name === '') continue;
           if (email && existingEmails.has(email.toLowerCase())) { dupes++; continue; }
           if (email) existingEmails.add(email.toLowerCase());
-          onAdd({
-            name, phone, email,
-            type: 'other', stage: 'new', source: 'mls_import',
-            tags: ['csv_import'],
-            notes: r.notes || 'Imported from CSV.',
-          });
-          added++;
+          toAdd.push({ name, phone, email, type: 'other', stage: 'new', source: 'mls_import', tags: ['csv_import'], notes: r.notes || 'Imported from CSV.' });
         }
-        setImportMsg(`\u2713 ${added} added${dupes ? ` (${dupes} dupes skipped)` : ''}`);
+        if (toAdd.length) onAddMany(toAdd);
+        setImportMsg(`\u2713 ${toAdd.length} added${dupes ? ` (${dupes} dupes skipped)` : ''}`);
         setTimeout(() => setImportMsg(''), 4000);
       } catch (err) {
         alert('CSV parse failed: ' + err.message);
