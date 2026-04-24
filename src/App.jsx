@@ -39,7 +39,7 @@ const AGENT = {
   name1: 'Lancey Lewis',
   title: 'Sales Associate',
   licenseNumber: 'SL3591641',
-  photoUrl: 'https://www.lewisteamrealestate.com/files/agent_profile_pics/1733943270.png',
+  photoUrl: '/brand/lancey.jpg',
   phone: '863-288-1546',
   email: 'LewisTeamHomelife@gmail.com',
   brandEmail: 'Info@TheLewisTeam.RealEstate',
@@ -52,7 +52,7 @@ const AGENT = {
     name: 'Stacy Lewis',
     title: 'Sales Associate',
     licenseNumber: 'SL3591875',
-    photoUrl: 'https://www.lewisteamrealestate.com/files/agent_profile_pics/1732249947.jpg',
+    photoUrl: '/brand/stacy.jpg',
     phone: '863-288-1772',
     email: 'LewisTeamHomelife@gmail.com',
     tiktok: 'https://www.tiktok.com/@stacylewisrealestate',
@@ -1472,10 +1472,14 @@ export default function App() {
     setter(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
 
   const openShare = (data) => {
+    const baseUrl = data.url || (window.location.origin + '/');
+    const trackUrl = baseUrl.includes('?')
+      ? baseUrl + '&utm_source=app-share&utm_medium=viral'
+      : baseUrl + '?utm_source=app-share&utm_medium=viral';
     const payload = {
       title: data.title || 'The Lewis Team',
-      text: data.text || data.title || 'Check out The Lewis Team',
-      url: data.url || window.location.origin + '/',
+      text: data.text || 'Find your path home \u2192 The Lewis Team, Realtor of the Year 2025 \u00b7 Central Florida',
+      url: trackUrl,
     };
     if (navigator.share) {
       navigator.share(payload).catch(() => setShareData(data));
@@ -3104,8 +3108,10 @@ function ShareButton({ label, data, onShare, variant = 'pill' }) {
 
 function ShareMenu({ data, onClose }) {
   const [copied, setCopied] = useState(false);
-  const url = data.url || (typeof window !== 'undefined' ? window.location.origin + '/' : '');
-  const text = data.text || data.title || 'The Lewis Team';
+  const rawUrl = data.url || (typeof window !== 'undefined' ? window.location.origin + '/' : '');
+  const url = rawUrl.includes('utm_') ? rawUrl
+    : rawUrl + (rawUrl.includes('?') ? '&' : '?') + 'utm_source=app-share&utm_medium=viral';
+  const text = data.text || 'Find your path home \u2192 The Lewis Team, Realtor of the Year 2025 \u00b7 Central Florida';
   const fullShare = `${text}\n\n${url}`;
 
   const copy = () => {
