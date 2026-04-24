@@ -528,7 +528,7 @@ const WINS = [
     badge: 'Out-of-State Move',
     quote:
       "Our clients trusted us to help them make a smooth transition from New York to Florida — securing a lease from out of state. Your confidence in us during such an important move means everything.",
-    attribution: 'NY \u2192 FL relocation · Just Leased',
+    attribution: 'NY → FL relocation · Just Leased',
   },
   {
     id: 'w_transformation',
@@ -5373,11 +5373,27 @@ function LeadAddForm({ onSave, onCancel }) {
     name: '', phone: '', email: '',
     type: 'buyer', stage: 'new', source: 'other',
     address: '', interests: '', notes: '', dealValue: 0,
+    birthday: '', spouseName: '', spouseBirthday: '', moveInDate: '',
+    preferredContact: 'text',
   });
-  const valid = f.name || f.phone || f.email;
+  const valid = (f.name || f.phone || f.email || '').trim().length > 0;
+
+  const handleSave = () => {
+    if (!valid) {
+      haptic('warn');
+      alert('Add at least a name, phone, or email to save this lead.');
+      return;
+    }
+    haptic('success');
+    onSave(f);
+  };
+
   return (
     <div>
       <p style={{ ...serif, color: C.ink }} className="text-xl leading-tight mb-3">New lead</p>
+      <p className="text-xs mb-3" style={{ color: C.muted }}>
+        Fill at least a <strong style={{ color: C.gold }}>name, phone, or email</strong> to save.
+      </p>
       <AdminInput label="Name" value={f.name} onChange={v => setF({ ...f, name: v })} />
       <AdminInput label="Phone" type="tel" value={f.phone} onChange={v => setF({ ...f, phone: v })} />
       <AdminInput label="Email" type="email" value={f.email} onChange={v => setF({ ...f, email: v })} />
@@ -5394,10 +5410,28 @@ function LeadAddForm({ onSave, onCancel }) {
                      placeholder="e.g. 3BR/2BA in Winter Haven under $300K, ready to buy in 30 days" />
       <AdminInput label="Expected deal value ($)" type="number" value={f.dealValue}
                   onChange={v => setF({ ...f, dealValue: Number(v) || 0 })} />
+
+      {/* Relationship fields for drip */}
+      <p className="text-[10px] uppercase tracking-[0.2em] mt-3 mb-2" style={{ color: C.gold }}>
+        Relationship dates (optional)
+      </p>
+      <AdminInput label="Birthday" type="date" value={f.birthday}
+                  onChange={v => setF({ ...f, birthday: v })} />
+      <AdminInput label="Home anniversary / move-in" type="date" value={f.moveInDate}
+                  onChange={v => setF({ ...f, moveInDate: v })} />
+
       <AdminTextArea label="Notes" rows={3} value={f.notes}
                      onChange={v => setF({ ...f, notes: v })} />
       <div className="flex gap-2 mt-3">
-        <AdminBtn onClick={() => valid && onSave(f)} variant="gold">Save lead</AdminBtn>
+        <button onClick={handleSave}
+          style={{
+            backgroundColor: valid ? C.gold : 'rgba(200,152,90,0.35)',
+            color: valid ? C.ink : 'rgba(15,42,63,0.4)',
+            opacity: valid ? 1 : 0.85,
+          }}
+          className="px-3.5 py-2 rounded-lg text-xs font-semibold active:scale-[0.98] transition">
+          {valid ? 'Save lead' : 'Need name, phone, or email'}
+        </button>
         <AdminBtn onClick={onCancel} variant="ghost">Cancel</AdminBtn>
       </div>
     </div>
