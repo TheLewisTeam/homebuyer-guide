@@ -1618,6 +1618,12 @@ export default function App() {
   };
 
   if (screen === 'welcome') {
+    const isTikTok = typeof window !== 'undefined' &&
+      (window.location.search.includes('utm_source=tiktok') ||
+       window.location.search.includes('ref=tiktok'));
+    if (isTikTok) {
+      return <TikTokLanding onStart={() => setScreen('portal')} onCapture={captureLead} />;
+    }
     return <Welcome onStart={() => setScreen('portal')} onShare={openShare} onCapture={captureLead} />;
   }
   if (screen === 'portal') {
@@ -1912,6 +1918,190 @@ function BottomNav({ activeTab, setActiveTab }) {
 /* =========================================================
    WELCOME SCREEN
    ========================================================= */
+
+/* =========================================================
+   TIKTOK LANDING PAGE — shown when ?utm_source=tiktok in URL
+   Form is front-and-center, no extra tap required
+   ========================================================= */
+function TikTokLanding({ onStart, onCapture }) {
+  const [f, setF] = useState({ name: '', contact: '', type: 'buyer' });
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const valid = f.name.trim() && f.contact.trim();
+
+  const submit = async () => {
+    if (!valid || submitting) return;
+    setSubmitting(true);
+    haptic('success');
+    const isEmail = f.contact.includes('@');
+    onCapture({
+      name: f.name.trim(),
+      email: isEmail ? f.contact.trim() : '',
+      phone: isEmail ? '' : f.contact.trim(),
+      type: f.type,
+      stage: 'new',
+      source: 'tiktok',
+      tags: ['tiktok', 'landing_page'],
+      notes: 'Lead from TikTok link in bio.',
+      consent: true,
+    });
+    try {
+      await pushEmailSubmission(`\uD83C\uDF9F\uFE0F TikTok Lead: ${f.name.trim()}`, {
+        'Name': f.name.trim(),
+        [isEmail ? 'Email' : 'Phone']: f.contact.trim(),
+        'Looking for': f.type,
+        'Source': 'TikTok link in bio',
+        'Submitted at': new Date().toISOString(),
+      });
+    } catch {}
+    try { localStorage.setItem('lt_profile_created', '1'); } catch {}
+    try { if (window.fbq) window.fbq('track', 'Lead', { content_name: 'TikTok Landing', content_category: f.type }); } catch {}
+    try { if (window.ttq) window.ttq.track('SubmitForm', { content_name: 'TikTok Landing', content_type: f.type }); } catch {}
+    setDone(true);
+    setSubmitting(false);
+  };
+
+  const typeOptions = [
+    { id: 'buyer', label: "I'm buying" },
+    { id: 'seller', label: "I'm selling" },
+    { id: 'investor', label: "Investing" },
+  ];
+
+  if (done) {
+    return (
+      <div style={{ minHeight: '100dvh', backgroundColor: '#0F2A3F', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32, textAlign: 'center', fontFamily: "'DM Sans', system-ui, sans-serif" }}>
+        <div style={{ fontSize: 56, marginBottom: 16 }}>🏡</div>
+        <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 30, color: '#F5EFE6', marginBottom: 8 }}>You're in!</h2>
+        <p style={{ color: 'rgba(245,239,230,0.7)', fontSize: 15, marginBottom: 8, maxWidth: 320 }}>
+          Lancey will reach out personally. In the meantime — explore your free guide.
+        </p>
+        <p style={{ color: '#C8985A', fontSize: 13, marginBottom: 32 }}>📱 863-288-1546</p>
+        <button onClick={onStart}
+          style={{ backgroundColor: '#C8985A', color: '#0F2A3F', border: 'none', borderRadius: 16, padding: '16px 40px', fontWeight: 700, fontSize: 16, cursor: 'pointer', width: '100%', maxWidth: 360 }}>
+          Open My Free Guide →
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight: '100dvh', backgroundColor: '#0F2A3F', fontFamily: "'DM Sans', system-ui, sans-serif", display: 'flex', flexDirection: 'column' }}>
+
+      {/* Header */}
+      <div style={{ background: 'linear-gradient(160deg, #0a1f2e 0%, #0F2A3F 100%)', padding: '28px 24px 20px', textAlign: 'center', borderBottom: '1px solid rgba(200,152,90,0.2)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 12 }}>
+          <img src="/brand/headshot-lancey.png" alt="Lancey"
+            style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', border: '2px solid #C8985A' }}
+            onError={e => { e.target.style.display = 'none'; }} />
+          <img src="/brand/headshot-stacy.png" alt="Stacy"
+            style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover', border: '2px solid #C8985A', marginLeft: -12 }}
+            onError={e => { e.target.style.display = 'none'; }} />
+          <div style={{ textAlign: 'left' }}>
+            <p style={{ color: '#F5EFE6', fontWeight: 700, fontSize: 15, margin: 0 }}>The Lewis Team</p>
+            <p style={{ color: '#C8985A', fontSize: 11, margin: 0 }}>Realtor of the Year 2025</p>
+          </div>
+        </div>
+
+        <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: 28, color: '#F5EFE6', margin: '0 0 6px', lineHeight: 1.15 }}>
+          Get your free home guide.
+        </h1>
+        <p style={{ color: 'rgba(245,239,230,0.65)', fontSize: 13, margin: 0 }}>
+          Step-by-step · Central Florida · No catch
+        </p>
+
+        {/* Social proof strip */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginTop: 14 }}>
+          {[['⭐', '5-Star'], ['🏡', '15 Cities'], ['🏆', 'ROY 2025']].map(([icon, label]) => (
+            <div key={label} style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 16 }}>{icon}</div>
+              <div style={{ color: 'rgba(245,239,230,0.5)', fontSize: 10, letterSpacing: '0.08em' }}>{label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Form */}
+      <div style={{ flex: 1, padding: '24px 20px 40px', display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
+
+        <p style={{ color: 'rgba(245,239,230,0.5)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', margin: 0 }}>
+          Free · No obligation · Takes 20 seconds
+        </p>
+
+        {/* Journey type */}
+        <div style={{ display: 'flex', gap: 8 }}>
+          {typeOptions.map(o => (
+            <button key={o.id} onClick={() => setF({ ...f, type: o.id })}
+              style={{
+                flex: 1, padding: '12px 4px', borderRadius: 12, border: 'none',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                backgroundColor: f.type === o.id ? '#C8985A' : 'rgba(255,255,255,0.08)',
+                color: f.type === o.id ? '#0F2A3F' : 'rgba(245,239,230,0.7)',
+                transition: 'all 0.15s',
+              }}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Name */}
+        <input
+          placeholder="Your first name"
+          value={f.name}
+          onChange={e => setF({ ...f, name: e.target.value })}
+          style={{
+            width: '100%', padding: '15px 16px', borderRadius: 14,
+            border: `1px solid ${f.name ? '#C8985A' : 'rgba(255,255,255,0.15)'}`,
+            backgroundColor: 'rgba(255,255,255,0.07)', color: '#F5EFE6',
+            fontSize: 16, boxSizing: 'border-box', outline: 'none',
+            transition: 'border-color 0.2s',
+          }}
+        />
+
+        {/* Phone or email */}
+        <input
+          placeholder="Phone number or email"
+          value={f.contact}
+          onChange={e => setF({ ...f, contact: e.target.value })}
+          style={{
+            width: '100%', padding: '15px 16px', borderRadius: 14,
+            border: `1px solid ${f.contact ? '#C8985A' : 'rgba(255,255,255,0.15)'}`,
+            backgroundColor: 'rgba(255,255,255,0.07)', color: '#F5EFE6',
+            fontSize: 16, boxSizing: 'border-box', outline: 'none',
+            transition: 'border-color 0.2s',
+          }}
+        />
+
+        {/* Submit */}
+        <button onClick={submit} disabled={!valid || submitting}
+          style={{
+            width: '100%', padding: '17px', borderRadius: 16, border: 'none',
+            backgroundColor: valid ? '#C8985A' : 'rgba(200,152,90,0.25)',
+            color: valid ? '#0F2A3F' : 'rgba(245,239,230,0.3)',
+            fontWeight: 700, fontSize: 17, cursor: valid ? 'pointer' : 'default',
+            transition: 'all 0.15s', marginTop: 4,
+          }}>
+          {submitting ? 'Saving…' : 'Get My Free Guide →'}
+        </button>
+
+        <p style={{ color: 'rgba(245,239,230,0.3)', fontSize: 12, textAlign: 'center', margin: 0 }}>
+          No spam. Lancey reaches out personally — not a bot.
+        </p>
+
+        {/* Trust footer */}
+        <div style={{ marginTop: 'auto', paddingTop: 24, borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <p style={{ color: 'rgba(245,239,230,0.4)', fontSize: 11, textAlign: 'center', margin: 0 }}>
+            Or skip the form and explore freely
+          </p>
+          <button onClick={onStart}
+            style={{ background: 'none', border: '1px solid rgba(200,152,90,0.3)', borderRadius: 12, padding: '12px', color: '#C8985A', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            Browse the guide without signing up
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* =========================================================
    LEAD CAPTURE MODAL — lightweight landing-page profile form
