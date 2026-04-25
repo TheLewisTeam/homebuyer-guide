@@ -8,7 +8,7 @@ import {
   Users, Trophy, Gift, Banknote, Briefcase, ListChecks,
   Instagram, Youtube, Facebook, Globe, Megaphone, HomeIcon,
   PartyPopper, BadgeCheck, Target,
-  Share2, Link2, Copy, Download, Smartphone, QrCode, Plus,
+  Share2, Link2, Copy, Download, Smartphone, QrCode, Plus, Music,
 } from 'lucide-react';
 
 /* ===========================================================
@@ -1981,6 +1981,10 @@ function TikTokLanding({ onStart, onCapture }) {
           style={{ backgroundColor: '#C8985A', color: '#0F2A3F', border: 'none', borderRadius: 16, padding: '16px 40px', fontWeight: 700, fontSize: 16, cursor: 'pointer', width: '100%', maxWidth: 360 }}>
           Open My Free Guide →
         </button>
+        <a href="https://www.tiktok.com/@stacylewisrealestate" target="_blank" rel="noopener noreferrer"
+           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 12, padding: '13px 24px', borderRadius: 14, border: '1px solid rgba(200,152,90,0.35)', color: '#C8985A', textDecoration: 'none', fontWeight: 600, fontSize: 14, width: '100%', maxWidth: 360, boxSizing: 'border-box' }}>
+          🎵 Follow us for daily tips
+        </a>
       </div>
     );
   }
@@ -2000,6 +2004,10 @@ function TikTokLanding({ onStart, onCapture }) {
           <div style={{ textAlign: 'left' }}>
             <p style={{ color: '#F5EFE6', fontWeight: 700, fontSize: 15, margin: 0 }}>The Lewis Team</p>
             <p style={{ color: '#C8985A', fontSize: 11, margin: 0 }}>Realtor of the Year 2025</p>
+            <a href="https://www.tiktok.com/@stacylewisrealestate" target="_blank" rel="noopener noreferrer"
+               style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: 'rgba(245,239,230,0.5)', fontSize: 10, textDecoration: 'none', marginTop: 2 }}>
+              🎵 @stacylewisrealestate
+            </a>
           </div>
         </div>
 
@@ -2328,6 +2336,18 @@ function Welcome({ onStart, onShare, onCapture }) {
         <p className="text-sm opacity-90 leading-relaxed mb-5">
           {AGENT.mission}
         </p>
+
+        {/* TikTok follow strip */}
+        <a href="https://www.tiktok.com/@stacylewisrealestate" target="_blank" rel="noopener noreferrer"
+           className="flex items-center gap-3 rounded-xl p-3.5 mb-5"
+           style={{ backgroundColor: 'rgba(200,152,90,0.08)', border: '1px solid rgba(200,152,90,0.2)', textDecoration: 'none' }}>
+          <span style={{ fontSize: 20 }}>🎵</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold" style={{ color: C.gold, margin: 0 }}>Follow us on TikTok</p>
+            <p className="text-[11px] truncate" style={{ color: 'rgba(245,239,230,0.5)', margin: 0 }}>@stacylewisrealestate · Daily real estate tips</p>
+          </div>
+          <ArrowRight size={14} style={{ color: C.gold, opacity: 0.6, flexShrink: 0 }} />
+        </a>
 
         {/* Install prompt (iOS + Android) */}
         <div className="mb-5">
@@ -3486,6 +3506,8 @@ function ShareMenu({ data, onClose }) {
       href: `sms:?&body=${enc(fullShare)}` },
     { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare,
       href: `https://wa.me/?text=${enc(fullShare)}` },
+    { id: 'tiktok', label: 'Follow on TikTok', icon: Music,
+      href: 'https://www.tiktok.com/@stacylewisrealestate' },
     { id: 'facebook', label: 'Facebook', icon: Facebook,
       href: `https://www.facebook.com/sharer/sharer.php?u=${enc(url)}&quote=${enc(text)}` },
     { id: 'twitter', label: 'X / Twitter', icon: Send,
