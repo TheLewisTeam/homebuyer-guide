@@ -39,7 +39,7 @@ const AGENT = {
   name1: 'Lancey Lewis',
   title: 'Sales Associate',
   licenseNumber: 'SL3591641',
-  photoUrl: 'https://www.lewisteamrealestate.com/files/agent_profile_pics/1733943270.png',
+  photoUrl: '/brand/headshot-lancey.png',
   phone: '863-288-1546',
   email: 'LewisTeamHomelife@gmail.com',
   brandEmail: 'Info@TheLewisTeam.RealEstate',
@@ -52,7 +52,7 @@ const AGENT = {
     name: 'Stacy Lewis',
     title: 'Sales Associate',
     licenseNumber: 'SL3591875',
-    photoUrl: 'https://www.lewisteamrealestate.com/files/agent_profile_pics/1732249947.jpg',
+    photoUrl: '/brand/headshot-stacy.png',
     phone: '863-288-1772',
     email: 'LewisTeamHomelife@gmail.com',
     tiktok: 'https://www.tiktok.com/@stacylewisrealestate',
@@ -1204,7 +1204,9 @@ const ADMIN_PIN = '0428';
 
 // Resolve an icon — accepts a React component ref (function OR forwardRef object from lucide)
 // OR a string name (for cloud-synced data where JSON stripped the function).
-// Guards against bad cloud data that serialized components as {} (empty objects).
+// JSON.stringify drops Symbol values, so a lucide forwardRef stored in Supabase comes back as
+// a plain object — $$typeof is gone, React rejects it. Only pass through objects that still
+// carry $$typeof (live component refs). Guards against bad cloud data serialized as {}.
 function resolveIcon(maybeIcon, fallback) {
   const fb = fallback || Clipboard;
   if (maybeIcon == null) return fb;
@@ -1223,7 +1225,6 @@ function resolveIcon(maybeIcon, fallback) {
     };
     return map[maybeIcon] || fb;
   }
-  // Functions are components (React function components)
   if (typeof maybeIcon === 'function') return maybeIcon;
   // Objects: only valid React components have $$typeof (forwardRef, memo, etc.)
   // Plain objects from JSON.parse don't → reject and fall back.
@@ -1432,14 +1433,53 @@ export default function App() {
     return () => { document.head.removeChild(link); };
   }, []);
 
+  // Android hardware back button — intercept popstate (Capacitor bridges hardware back → popstate)
+  const [backToast, setBackToast] = useState(false);
+  const _backLast = useRef(0);
+  const _sRef = useRef(screen), _tRef = useRef(activeTab);
+  const _mRef = useRef(modal), _oRef = useRef(openStep), _sdRef = useRef(shareData);
+  useEffect(() => { _sRef.current = screen; }, [screen]);
+  useEffect(() => { _tRef.current = activeTab; }, [activeTab]);
+  useEffect(() => { _mRef.current = modal; }, [modal]);
+  useEffect(() => { _oRef.current = openStep; }, [openStep]);
+  useEffect(() => { _sdRef.current = shareData; }, [shareData]);
+  useEffect(() => {
+    try { window.history.pushState({ lt: 1 }, ''); } catch {}
+    const onBack = () => {
+      const push = () => { try { window.history.pushState({ lt: 1 }, ''); } catch {} };
+      const s = _sRef.current, tab = _tRef.current;
+      const m = _mRef.current, step = _oRef.current, sd = _sdRef.current;
+      if (sd) { setShareData(null); push(); return; }
+      if (m) { setModal(null); push(); return; }
+      if (step) { setOpenStep(null); push(); return; }
+      if (s === 'portal') { setScreen('welcome'); push(); return; }
+      if (s === 'main' && tab !== 'home') { setActiveTab('home'); push(); return; }
+      if (s === 'main') {
+        if (Date.now() - _backLast.current < 2000) return; // second press → native exit
+        _backLast.current = Date.now();
+        setBackToast(true);
+        setTimeout(() => setBackToast(false), 2000);
+        push();
+        return;
+      }
+      // welcome screen — let native handle (exit)
+    };
+    window.addEventListener('popstate', onBack);
+    return () => window.removeEventListener('popstate', onBack);
+  }, []);
+
   const toggle = (setter) => (id) =>
     setter(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
 
   const openShare = (data) => {
+    const baseUrl = data.url || (window.location.origin + '/');
+    const trackUrl = baseUrl.includes('?')
+      ? baseUrl + '&utm_source=app-share&utm_medium=viral'
+      : baseUrl + '?utm_source=app-share&utm_medium=viral';
     const payload = {
       title: data.title || 'The Lewis Team',
-      text: data.text || data.title || 'Check out The Lewis Team',
-      url: data.url || window.location.origin + '/',
+      text: data.text || 'Find your path home \u2192 The Lewis Team, Realtor of the Year 2025 \u00b7 Central Florida',
+      url: trackUrl,
     };
     if (navigator.share) {
       navigator.share(payload).catch(() => setShareData(data));
@@ -1498,6 +1538,46 @@ export default function App() {
     // Prepend so newest shows first
     setCrm([lead, ...(crm || [])]);
     return lead.id;
+  };
+
+  // Batch import — adds all partials in ONE setCrm call so they all survive.
+  // captureLead called N times in a loop loses all but the last (stale closure).
+  const captureLeadsMany = (partials) => {
+    const base = Date.now();
+    const now = new Date(base).toISOString();
+    const newLeads = partials.map((partial, i) => ({
+      id: `lead_${base}_${i}_${Math.floor(Math.random() * 1000)}`,
+      name: partial.name || '',
+      phone: partial.phone || '',
+      email: partial.email || '',
+      type: partial.type || 'other',
+      stage: partial.stage || 'new',
+      source: partial.source || 'app_contact',
+      budget: partial.budget || null,
+      interests: partial.interests || '',
+      address: partial.address || '',
+      notes: partial.notes || '',
+      dealValue: partial.dealValue || 0,
+      closeDate: partial.closeDate || '',
+      tags: partial.tags || [],
+      birthday: partial.birthday || '',
+      spouseName: partial.spouseName || '',
+      spouseBirthday: partial.spouseBirthday || '',
+      moveInDate: partial.moveInDate || '',
+      importantDates: partial.importantDates || [],
+      preferredContact: partial.preferredContact || '',
+      consent: partial.consent || false,
+      activities: [{
+        id: `a_${base}_${i}`,
+        type: 'system',
+        body: `Lead created from ${(CRM_SOURCES.find(s => s.id === (partial.source || 'app_contact'))?.label) || 'app'}.`,
+        createdAt: now,
+      }],
+      tasks: [],
+      createdAt: now,
+      updatedAt: now,
+    }));
+    setCrm([...newLeads, ...(crm || [])]);
   };
 
   const updateLead = (id, patch) => {
@@ -1655,7 +1735,7 @@ export default function App() {
           crm={crm} setCrm={setCrm} resetCrm={resetCrm}
           updateLead={updateLead} deleteLead={deleteLead}
           addActivity={addActivity} addTask={addTask} toggleTask={toggleTask}
-          captureLead={captureLead}
+          captureLead={captureLead} captureLeadsMany={captureLeadsMany}
           listings={listings} setListings={setListings} resetListings={resetListings}
           liveConfig={liveConfig} setLiveConfig={setLiveConfig} resetLive={resetLive}
           moments={moments} setMoments={setMoments} resetMoments={resetMoments}
@@ -1682,6 +1762,17 @@ export default function App() {
         <SyncOfferModal payload={syncOffer}
           onApply={() => applySyncPayload(syncOffer)}
           onClose={() => setSyncOffer(null)} />
+      )}
+      {backToast && (
+        <div style={{
+          position: 'fixed', bottom: 88, left: '50%', transform: 'translateX(-50%)',
+          backgroundColor: 'rgba(15,42,63,0.92)', color: '#F5EFE6',
+          padding: '10px 22px', borderRadius: 24, fontSize: 13, fontWeight: 600,
+          zIndex: 9999, pointerEvents: 'none', whiteSpace: 'nowrap',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+        }}>
+          Press back again to exit
+        </div>
       )}
       </div>
     </div>
@@ -3017,8 +3108,10 @@ function ShareButton({ label, data, onShare, variant = 'pill' }) {
 
 function ShareMenu({ data, onClose }) {
   const [copied, setCopied] = useState(false);
-  const url = data.url || (typeof window !== 'undefined' ? window.location.origin + '/' : '');
-  const text = data.text || data.title || 'The Lewis Team';
+  const rawUrl = data.url || (typeof window !== 'undefined' ? window.location.origin + '/' : '');
+  const url = rawUrl.includes('utm_') ? rawUrl
+    : rawUrl + (rawUrl.includes('?') ? '&' : '?') + 'utm_source=app-share&utm_medium=viral';
+  const text = data.text || 'Find your path home \u2192 The Lewis Team, Realtor of the Year 2025 \u00b7 Central Florida';
   const fullShare = `${text}\n\n${url}`;
 
   const copy = () => {
@@ -4105,7 +4198,7 @@ function TeamTab({ team, testimonials, wins, onContact }) {
         name: T.name1 || AGENT.name1,
         title: T.title1 || AGENT.title,
         licenseNumber: T.license1 || AGENT.licenseNumber,
-        photoUrl: T.photo1 || AGENT.photoUrl,
+        photoUrl: (T.photo1 && !T.photo1.includes('lewisteamrealestate.com/files/agent_profile_pics')) ? T.photo1 : AGENT.photoUrl,
         phone: T.phone1 || AGENT.phone,
         email: T.email1 || AGENT.email,
         bio: T.bio1,
@@ -4119,7 +4212,7 @@ function TeamTab({ team, testimonials, wins, onContact }) {
         name: T.name2 || AGENT.coAgent.name,
         title: T.title2 || AGENT.coAgent.title,
         licenseNumber: T.license2 || AGENT.coAgent.licenseNumber,
-        photoUrl: T.photo2 || AGENT.coAgent.photoUrl,
+        photoUrl: (T.photo2 && !T.photo2.includes('lewisteamrealestate.com/files/agent_profile_pics')) ? T.photo2 : AGENT.coAgent.photoUrl,
         phone: T.phone2 || AGENT.coAgent.phone,
         email: T.email2 || AGENT.coAgent.email,
         bio: T.bio2,
@@ -4229,13 +4322,22 @@ function StatTile({ label, value }) {
 }
 
 function AgentCard({ agent }) {
+  const [imgFailed, setImgFailed] = useState(false);
   return (
     <div style={{ backgroundColor: C.paper, border: `1px solid ${C.line}` }}
          className="rounded-2xl p-4">
       <div className="flex items-start gap-4 mb-3">
-        <img src={agent.photoUrl} alt={agent.name}
-          className="w-16 h-16 rounded-full object-cover flex-shrink-0"
-          style={{ border: `2px solid ${C.gold}` }} />
+        {agent.photoUrl && !imgFailed ? (
+          <img src={agent.photoUrl} alt={agent.name}
+            className="w-16 h-16 rounded-full object-cover flex-shrink-0"
+            style={{ border: `2px solid ${C.gold}` }}
+            onError={() => setImgFailed(true)} />
+        ) : (
+          <div className="w-16 h-16 rounded-full flex-shrink-0 grid place-items-center text-2xl font-bold"
+               style={{ backgroundColor: C.gold, color: C.ink, border: `2px solid ${C.gold}` }}>
+            {(agent.name || '?').charAt(0).toUpperCase()}
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <p style={serif} className="text-lg leading-tight">{agent.name}</p>
           <p className="text-xs" style={{ color: C.muted }}>{agent.title}</p>
@@ -5012,7 +5114,7 @@ function AdminSyncBar({ all }) {
 function AdminCenter({
   adminMode, onLock, onClose,
   crm, setCrm, resetCrm,
-  updateLead, deleteLead, addActivity, addTask, toggleTask, captureLead,
+  updateLead, deleteLead, addActivity, addTask, toggleTask, captureLead, captureLeadsMany,
   listings, setListings, resetListings,
   liveConfig, setLiveConfig, resetLive,
   moments, setMoments, resetMoments,
@@ -5095,6 +5197,7 @@ function AdminCenter({
             <CrmPanel
               leads={crm || []}
               onAdd={captureLead}
+              onAddMany={captureLeadsMany}
               onUpdate={updateLead}
               onDelete={deleteLead}
               onAddActivity={addActivity}
@@ -5226,7 +5329,7 @@ function AdminBtn({ children, onClick, variant = 'primary', className = '' }) {
 /* =========================================================
    CRM PANEL — dashboard, pipeline, lead detail, activity log
    ========================================================= */
-function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, onToggleTask, onReset }) {
+function CrmPanel({ leads, onAdd, onAddMany, onUpdate, onDelete, onAddActivity, onAddTask, onToggleTask, onReset }) {
   const [view, setView] = useState('dashboard');
   const [focusLeadId, setFocusLeadId] = useState(null);
   const [search, setSearch] = useState('');
@@ -5254,18 +5357,16 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
       imported.push(c);
     }
     if (!confirm(`Import ${imported.length} contacts from your Matrix CSV?\n(${skipped.length} duplicates skipped.)`)) return;
-    imported.forEach(c => {
-      onAdd({
-        name: c.name,
-        phone: c.phone,
-        email: c.email,
-        type: 'other',
-        stage: 'new',
-        source: 'mls_import',
-        tags: ['mls_matrix'],
-        notes: 'Imported from MLS Matrix CSV.',
-      });
-    });
+    onAddMany(imported.map(c => ({
+      name: c.name,
+      phone: c.phone,
+      email: c.email,
+      type: 'other',
+      stage: 'new',
+      source: 'mls_import',
+      tags: ['mls_matrix'],
+      notes: 'Imported from MLS Matrix CSV.',
+    })));
     setImportMsg(`\u2713 Imported ${imported.length} contacts${skipped.length ? ` (${skipped.length} dupes skipped)` : ''}`);
     setTimeout(() => setImportMsg(''), 4000);
     haptic('success');
@@ -5281,7 +5382,8 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
         const rows = parseCsv(reader.result);
         if (!rows.length) { alert('CSV is empty.'); return; }
         const existingEmails = new Set(leads.map(l => (l.email || '').toLowerCase()).filter(Boolean));
-        let added = 0, dupes = 0;
+        const toAdd = [];
+        let dupes = 0;
         for (const r of rows) {
           const name = [r.name_first, r.name_middle, r.name_last].filter(Boolean).join(' ').trim()
                     || r.name || r.full_name || '(no name)';
@@ -5290,15 +5392,10 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
           if (name === '.' || name === '') continue;
           if (email && existingEmails.has(email.toLowerCase())) { dupes++; continue; }
           if (email) existingEmails.add(email.toLowerCase());
-          onAdd({
-            name, phone, email,
-            type: 'other', stage: 'new', source: 'mls_import',
-            tags: ['csv_import'],
-            notes: r.notes || 'Imported from CSV.',
-          });
-          added++;
+          toAdd.push({ name, phone, email, type: 'other', stage: 'new', source: 'mls_import', tags: ['csv_import'], notes: r.notes || 'Imported from CSV.' });
         }
-        setImportMsg(`\u2713 ${added} added${dupes ? ` (${dupes} dupes skipped)` : ''}`);
+        if (toAdd.length) onAddMany(toAdd);
+        setImportMsg(`\u2713 ${toAdd.length} added${dupes ? ` (${dupes} dupes skipped)` : ''}`);
         setTimeout(() => setImportMsg(''), 4000);
       } catch (err) {
         alert('CSV parse failed: ' + err.message);
@@ -5368,6 +5465,9 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
     ? Math.round((closedLeads.length / leads.length) * 100) : 0;
   const openTasks = leads.reduce((n, l) => n + (l.tasks || []).filter(t => !t.done).length, 0);
 
+  // Drip queue — must be computed before any early return (rules of hooks)
+  const dripQueue = useMemo(() => computeDripQueue(leads), [leads]);
+
   // Lead detail view
   if (focusLead) {
     return <LeadDetail lead={focusLead} onBack={() => setFocusLeadId(null)}
@@ -5377,10 +5477,6 @@ function CrmPanel({ leads, onAdd, onUpdate, onDelete, onAddActivity, onAddTask, 
              onAddTask={(t) => onAddTask(focusLead.id, t)}
              onToggleTask={(id) => onToggleTask(focusLead.id, id)} />;
   }
-
-
-  // Drip queue — computed from all leads
-  const dripQueue = useMemo(() => computeDripQueue(leads), [leads]);
 
   // Mark a drip step done — logs an activity with the stepKey, so it won't reappear
   const completeDripStep = (action) => {
