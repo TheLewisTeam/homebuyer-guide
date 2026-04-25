@@ -1226,9 +1226,12 @@ function resolveIcon(maybeIcon, fallback) {
     return map[maybeIcon] || fb;
   }
   if (typeof maybeIcon === 'function') return maybeIcon;
-  // Objects: only valid React components have $$typeof (forwardRef, memo, etc.)
-  // Plain objects from JSON.parse don't → reject and fall back.
-  if (typeof maybeIcon === 'object' && maybeIcon.$$typeof) return maybeIcon;
+  // forwardRef/memo components have $$typeof AND a render/type function.
+  // React elements also have $$typeof but are not component types — reject them.
+  if (typeof maybeIcon === 'object' && maybeIcon !== null && maybeIcon.$$typeof &&
+      (typeof maybeIcon.render === 'function' || typeof maybeIcon.type === 'function')) {
+    return maybeIcon;
+  }
   return fb;
 }
 
@@ -1615,7 +1618,7 @@ export default function App() {
   };
 
   if (screen === 'welcome') {
-    return <Welcome onStart={() => setScreen('portal')} onShare={openShare} />;
+    return <Welcome onStart={() => setScreen('portal')} onShare={openShare} onCapture={captureLead} />;
   }
   if (screen === 'portal') {
     return <Portal
@@ -1910,7 +1913,156 @@ function BottomNav({ activeTab, setActiveTab }) {
    WELCOME SCREEN
    ========================================================= */
 
-function Welcome({ onStart, onShare }) {
+/* =========================================================
+   LEAD CAPTURE MODAL — lightweight landing-page profile form
+   ========================================================= */
+function LeadCaptureModal({ onCapture, onClose, onStart }) {
+  const [f, setF] = useState({ name: '', contact: '', type: 'buyer' });
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const valid = f.name.trim() && f.contact.trim();
+
+  const submit = async () => {
+    if (!valid || submitting) return;
+    setSubmitting(true);
+    haptic('success');
+    const isEmail = f.contact.includes('@');
+    onCapture({
+      name: f.name.trim(),
+      email: isEmail ? f.contact.trim() : '',
+      phone: isEmail ? '' : f.contact.trim(),
+      type: f.type,
+      stage: 'new',
+      source: 'landing_page',
+      tags: ['landing_page', 'self_registered'],
+      notes: 'Self-registered from landing page.',
+      consent: true,
+    });
+    try {
+      await pushEmailSubmission(`\uD83D\uDCF1 New Landing Page Lead: ${f.name.trim()}`, {
+        'Name': f.name.trim(),
+        [isEmail ? 'Email' : 'Phone']: f.contact.trim(),
+        'Looking for': f.type,
+        'Source': 'Landing page — Create Your Profile button',
+        'Submitted at': new Date().toISOString(),
+      });
+    } catch {}
+    try { localStorage.setItem('lt_profile_created', '1'); } catch {}
+    setDone(true);
+    setSubmitting(false);
+  };
+
+  if (done) {
+    return (
+      <div style={{
+        position: 'fixed', inset: 0, zIndex: 9000, display: 'flex',
+        alignItems: 'flex-end', justifyContent: 'center',
+        backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+      }}>
+        <div style={{ backgroundColor: '#0F2A3F', borderRadius: '24px 24px 0 0', padding: 32, width: '100%', maxWidth: 480, textAlign: 'center' }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🏡</div>
+          <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 26, color: '#F5EFE6', marginBottom: 8 }}>
+            You're in!
+          </h2>
+          <p style={{ color: 'rgba(245,239,230,0.7)', fontSize: 14, marginBottom: 24 }}>
+            Lancey will be in touch. In the meantime, explore your personalized guide below.
+          </p>
+          <button onClick={() => { onClose(); onStart(); }}
+            style={{ backgroundColor: '#C8985A', color: '#0F2A3F', border: 'none', borderRadius: 14, padding: '14px 32px', fontWeight: 700, fontSize: 15, width: '100%', cursor: 'pointer' }}>
+            Start Your Journey →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const typeOptions = [
+    { id: 'buyer', label: "I'm buying" },
+    { id: 'seller', label: "I'm selling" },
+    { id: 'investor', label: "I'm investing" },
+  ];
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9000, display: 'flex',
+      alignItems: 'flex-end', justifyContent: 'center',
+      backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+    }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ backgroundColor: '#0F2A3F', borderRadius: '24px 24px 0 0', padding: '28px 24px 40px', width: '100%', maxWidth: 480 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <div>
+            <p style={{ color: '#C8985A', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.18em', marginBottom: 4 }}>
+              Free · No obligation
+            </p>
+            <h2 style={{ fontFamily: "'Fraunces', serif", fontSize: 24, color: '#F5EFE6', margin: 0 }}>
+              Create Your Profile
+            </h2>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(245,239,230,0.5)', fontSize: 22, cursor: 'pointer', padding: 4 }}>✕</button>
+        </div>
+
+        {/* Journey type */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          {typeOptions.map(o => (
+            <button key={o.id} onClick={() => setF({ ...f, type: o.id })}
+              style={{
+                flex: 1, padding: '10px 4px', borderRadius: 10, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                backgroundColor: f.type === o.id ? '#C8985A' : 'rgba(255,255,255,0.08)',
+                color: f.type === o.id ? '#0F2A3F' : 'rgba(245,239,230,0.7)',
+                transition: 'all 0.15s',
+              }}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Name */}
+        <input
+          placeholder="Your name"
+          value={f.name}
+          onChange={e => setF({ ...f, name: e.target.value })}
+          style={{
+            width: '100%', padding: '14px 16px', borderRadius: 12, border: '1px solid rgba(200,152,90,0.3)',
+            backgroundColor: 'rgba(255,255,255,0.06)', color: '#F5EFE6', fontSize: 15,
+            marginBottom: 10, boxSizing: 'border-box', outline: 'none',
+          }}
+        />
+
+        {/* Phone or email */}
+        <input
+          placeholder="Phone or email"
+          value={f.contact}
+          onChange={e => setF({ ...f, contact: e.target.value })}
+          style={{
+            width: '100%', padding: '14px 16px', borderRadius: 12, border: '1px solid rgba(200,152,90,0.3)',
+            backgroundColor: 'rgba(255,255,255,0.06)', color: '#F5EFE6', fontSize: 15,
+            marginBottom: 20, boxSizing: 'border-box', outline: 'none',
+          }}
+        />
+
+        <button onClick={submit} disabled={!valid || submitting}
+          style={{
+            width: '100%', padding: '15px', borderRadius: 14, border: 'none',
+            backgroundColor: valid ? '#C8985A' : 'rgba(200,152,90,0.3)',
+            color: valid ? '#0F2A3F' : 'rgba(245,239,230,0.4)',
+            fontWeight: 700, fontSize: 15, cursor: valid ? 'pointer' : 'default', transition: 'all 0.15s',
+          }}>
+          {submitting ? 'Saving…' : 'Get My Free Guide →'}
+        </button>
+
+        <p style={{ color: 'rgba(245,239,230,0.35)', fontSize: 11, textAlign: 'center', marginTop: 12 }}>
+          No spam. Lancey will reach out personally.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function Welcome({ onStart, onShare, onCapture }) {
+  const [showCapture, setShowCapture] = useState(false);
+  const hasProfile = (() => { try { return !!localStorage.getItem('lt_profile_created'); } catch { return false; } })();
+
   useEffect(() => {
     const link = document.createElement('link');
     link.href = 'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap';
@@ -2003,10 +2155,24 @@ function Welcome({ onStart, onShare }) {
           className="w-full py-4 rounded-xl font-semibold tracking-wide flex items-center justify-center gap-2 transition active:scale-[0.98]">
           Start Your Journey <ArrowRight size={18} />
         </button>
+        <button onClick={() => setShowCapture(true)}
+          style={{ backgroundColor: 'transparent', color: C.gold, border: `1px solid rgba(200,152,90,0.4)` }}
+          className="w-full py-3.5 rounded-xl font-semibold tracking-wide flex items-center justify-center gap-2 transition active:scale-[0.98] mt-3 text-sm">
+          <User size={15} />
+          {hasProfile ? 'View Your Profile →' : 'Create Your Profile — It\'s Free'}
+        </button>
         <p className="text-[10px] opacity-50 text-center mt-3">
           Realtor of the Year 2025 &middot; HomeLife Realty Coastal Properties
         </p>
       </div>
+
+      {showCapture && (
+        <LeadCaptureModal
+          onCapture={onCapture}
+          onClose={() => setShowCapture(false)}
+          onStart={onStart}
+        />
+      )}
       </div>
     </div>
   );
