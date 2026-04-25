@@ -46,10 +46,15 @@ class ErrorBoundary extends React.Component {
             that clears your device's cache but won't touch your cloud-synced leads.
           </p>
           <pre style={{
-            textAlign: 'left', fontSize: 11, opacity: 0.6,
+            textAlign: 'left', fontSize: 11, opacity: 0.7,
             background: 'rgba(255,255,255,0.05)', padding: 12, borderRadius: 8,
-            overflow: 'auto', maxHeight: 160, marginBottom: 20,
-          }}>{String(this.state.error?.message || this.state.error)}</pre>
+            overflow: 'auto', maxHeight: 220, marginBottom: 20,
+            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+          }}>
+            {String(this.state.error?.message || this.state.error)}
+            {'\n\n'}
+            {(this.state.error?.stack || '').split('\n').slice(0, 8).join('\n')}
+          </pre>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
             <button onClick={() => window.location.reload()}
               style={{

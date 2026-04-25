@@ -1205,10 +1205,11 @@ const ADMIN_PIN = '0428';
 // Resolve an icon — accepts a React component ref (function OR forwardRef object from lucide)
 // OR a string name (for cloud-synced data where JSON stripped the function).
 // JSON.stringify drops Symbol values, so a lucide forwardRef stored in Supabase comes back as
-// a plain object like {"displayName":"Key"} — $$typeof is gone, React rejects it.
-// Guard: only pass through objects that still carry $$typeof (live component refs).
+// a plain object — $$typeof is gone, React rejects it. Only pass through objects that still
+// carry $$typeof (live component refs). Guards against bad cloud data serialized as {}.
 function resolveIcon(maybeIcon, fallback) {
-  if (maybeIcon == null) return fallback || Clipboard;
+  const fb = fallback || Clipboard;
+  if (maybeIcon == null) return fb;
   // Strings need map lookup (cloud data)
   if (typeof maybeIcon === 'string') {
     const map = {
@@ -1222,14 +1223,13 @@ function resolveIcon(maybeIcon, fallback) {
       PartyPopper, BadgeCheck, Target, Share2, Link2, Copy,
       Download, Smartphone, QrCode, Plus,
     };
-    return map[maybeIcon] || fallback || Clipboard;
+    return map[maybeIcon] || fb;
   }
-  // Function components pass through directly.
   if (typeof maybeIcon === 'function') return maybeIcon;
-  // forwardRef / memo objects carry $$typeof (a Symbol) — JSON.stringify drops Symbols,
-  // so a deserialized icon shell won't have it and should fall back instead.
-  if (maybeIcon.$$typeof) return maybeIcon;
-  return fallback || Clipboard;
+  // Objects: only valid React components have $$typeof (forwardRef, memo, etc.)
+  // Plain objects from JSON.parse don't → reject and fall back.
+  if (typeof maybeIcon === 'object' && maybeIcon.$$typeof) return maybeIcon;
+  return fb;
 }
 
 // Haptic feedback — works on Android, silent on iOS Safari (no vibrate API)
@@ -6182,12 +6182,39 @@ function LeadAddForm({ onSave, onCancel }) {
   );
 }
 
-function LeadDetail({ lead, onBack, onUpdate, onDelete, onAddActivity, onAddTask, onToggleTask }) {
+function LeadDetail({ lead: rawLead, onBack, onUpdate, onDelete, onAddActivity, onAddTask, onToggleTask }) {
+  // Defensive: normalize the lead so any missing / weirdly-shaped fields can't crash render
+  const lead = {
+    id: rawLead?.id || 'unknown',
+    name: typeof rawLead?.name === 'string' ? rawLead.name : '',
+    phone: typeof rawLead?.phone === 'string' ? rawLead.phone : '',
+    email: typeof rawLead?.email === 'string' ? rawLead.email : '',
+    type: typeof rawLead?.type === 'string' ? rawLead.type : 'other',
+    stage: typeof rawLead?.stage === 'string' ? rawLead.stage : 'new',
+    source: typeof rawLead?.source === 'string' ? rawLead.source : 'other',
+    address: typeof rawLead?.address === 'string' ? rawLead.address : '',
+    interests: typeof rawLead?.interests === 'string' ? rawLead.interests : '',
+    notes: typeof rawLead?.notes === 'string' ? rawLead.notes : '',
+    dealValue: Number(rawLead?.dealValue) || 0,
+    closeDate: typeof rawLead?.closeDate === 'string' ? rawLead.closeDate : '',
+    birthday: typeof rawLead?.birthday === 'string' ? rawLead.birthday : '',
+    spouseName: typeof rawLead?.spouseName === 'string' ? rawLead.spouseName : '',
+    spouseBirthday: typeof rawLead?.spouseBirthday === 'string' ? rawLead.spouseBirthday : '',
+    moveInDate: typeof rawLead?.moveInDate === 'string' ? rawLead.moveInDate : '',
+    preferredContact: typeof rawLead?.preferredContact === 'string' ? rawLead.preferredContact : 'text',
+    tags: Array.isArray(rawLead?.tags) ? rawLead.tags : [],
+    importantDates: Array.isArray(rawLead?.importantDates) ? rawLead.importantDates : [],
+    activities: Array.isArray(rawLead?.activities) ? rawLead.activities : [],
+    tasks: Array.isArray(rawLead?.tasks) ? rawLead.tasks : [],
+    createdAt: rawLead?.createdAt || new Date().toISOString(),
+    updatedAt: rawLead?.updatedAt || rawLead?.createdAt || new Date().toISOString(),
+  };
+
   const stage = CRM_STAGES.find(s => s.id === lead.stage) || CRM_STAGES[0];
   const [tab, setTab] = useState('overview');
   const [edit, setEdit] = useState(false);
   const [draft, setDraft] = useState(lead);
-  useEffect(() => { setDraft(lead); }, [lead.id]);
+  useEffect(() => { setDraft(lead); /* eslint-disable-next-line */ }, [lead.id]);
 
   const saveEdits = () => { onUpdate(draft); setEdit(false); };
 
@@ -6207,8 +6234,8 @@ function LeadDetail({ lead, onBack, onUpdate, onDelete, onAddActivity, onAddTask
     setNewTask(''); setNewTaskDate('');
   };
 
-  const openTasks = (lead.tasks || []).filter(t => !t.done);
-  const doneTasks = (lead.tasks || []).filter(t => t.done);
+  const openTasks = lead.tasks.filter(t => !t.done);
+  const doneTasks = lead.tasks.filter(t => t.done);
 
   return (
     <div>
