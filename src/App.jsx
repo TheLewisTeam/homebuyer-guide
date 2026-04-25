@@ -1950,6 +1950,7 @@ function LeadCaptureModal({ onCapture, onClose, onStart }) {
     } catch {}
     try { localStorage.setItem('lt_profile_created', '1'); } catch {}
     try { if (window.fbq) window.fbq('track', 'Lead', { content_name: 'Create Your Profile', content_category: f.type }); } catch {}
+    try { if (window.ttq) window.ttq.track('SubmitForm', { content_name: 'Create Your Profile', content_type: f.type }); } catch {}
     setDone(true);
     setSubmitting(false);
   };
