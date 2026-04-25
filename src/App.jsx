@@ -1949,6 +1949,7 @@ function LeadCaptureModal({ onCapture, onClose, onStart }) {
       });
     } catch {}
     try { localStorage.setItem('lt_profile_created', '1'); } catch {}
+    try { if (window.fbq) window.fbq('track', 'Lead', { content_name: 'Create Your Profile', content_category: f.type }); } catch {}
     setDone(true);
     setSubmitting(false);
   };
@@ -1968,7 +1969,7 @@ function LeadCaptureModal({ onCapture, onClose, onStart }) {
           <p style={{ color: 'rgba(245,239,230,0.7)', fontSize: 14, marginBottom: 24 }}>
             Lancey will be in touch. In the meantime, explore your personalized guide below.
           </p>
-          <button onClick={() => { onClose(); onStart(); }}
+          <button onClick={() => { try { if (window.fbq) window.fbq('track', 'CompleteRegistration'); } catch {} onClose(); onStart(); }}
             style={{ backgroundColor: '#C8985A', color: '#0F2A3F', border: 'none', borderRadius: 14, padding: '14px 32px', fontWeight: 700, fontSize: 15, width: '100%', cursor: 'pointer' }}>
             Start Your Journey →
           </button>
