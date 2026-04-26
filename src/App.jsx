@@ -1203,6 +1203,31 @@ async function cloudTestConnection() {
 // Hardcoded admin PIN — change here if Lancey ever needs to update
 const ADMIN_PIN = '0428';
 
+// External integrations — admin can edit via Admin → Data
+const EXTERNAL_DEFAULTS = {
+  // Google Business Profile review URL — get yours at: search.google.com → "The Lewis Team Winter Haven" → "Write a review" → copy the share URL
+  googleReviewUrl: 'https://g.page/r/CYourBusinessIdHere/review',
+  googleBusinessUrl: 'https://www.google.com/search?q=The+Lewis+Team+Real+Estate+Winter+Haven',
+  // Full MLS search portal — Lancey already has searchallproperties.com setup
+  mlsSearchUrl: 'https://www.searchallproperties.com/guides/LewisTeam',
+  // Team intro video — paste a YouTube URL (https://www.youtube.com/embed/VIDEO_ID) or leave empty to hide
+  videoIntroUrl: '',
+  videoIntroPoster: '/brand/team-hero.jpg',
+  videoIntroTitle: "Meet The Lewis Team",
+  videoIntroSub: 'Lancey & Stacy — Realtor of the Year 2025',
+};
+
+const STARTER_REVIEWS = [
+  {
+    id: 'r_demo1',
+    author: 'Demo Client',
+    text: "Replace this with a real Google review. Admin → CRM → Content → Reviews. Or paste reviews manually until we wire the live Google API.",
+    stars: 5,
+    date: '2025-08',
+    source: 'google',
+  },
+];
+
 /* =========================================================
    ANALYTICS — paste your IDs once and tracking fires automatically.
    GA4: get from analytics.google.com > Admin > Data Streams
@@ -1417,6 +1442,8 @@ export default function App() {
   const [wins, setWins, resetWins] = useCloudEditable('wins', WINS);
   const [workshops, setWorkshops, resetWorkshops] = useCloudEditable('workshops', WORKSHOPS);
   const [crm, setCrm, resetCrm] = useCloudEditable('crm', []);
+  const [reviews, setReviews, resetReviews] = useCloudEditable('reviews', STARTER_REVIEWS);
+  const [external, setExternal, resetExternal] = useCloudEditable('external', EXTERNAL_DEFAULTS);
   const [teamOverrides, setTeamOverrides, resetTeam] = useCloudEditable('team', {
     name1: AGENT.name1, title1: AGENT.title, license1: AGENT.licenseNumber,
     phone1: AGENT.phone, email1: AGENT.email, photo1: AGENT.photoUrl,
@@ -1758,6 +1785,7 @@ export default function App() {
       onCapture={captureLead}
       onChoose={choosePath}
       onContact={setModal}
+      external={external}
     />;
   }
   if (screen === 'portal') {
@@ -1792,6 +1820,8 @@ export default function App() {
             wins={wins}
             workshops={workshops}
             team={teamOverrides}
+            reviews={reviews}
+            external={external}
             onGoTo={setActiveTab} onContact={setModal} onShare={openShare} />
         )}
         {activeTab === 'buy' && (
@@ -1822,7 +1852,7 @@ export default function App() {
           />
         )}
         {activeTab === 'listings' && (
-          <ListingsTab listings={listings} onContact={setModal} onShare={openShare} />
+          <ListingsTab listings={listings} onContact={setModal} onShare={openShare} external={external} />
         )}
         {activeTab === 'tools' && (
           <ToolsTab
@@ -2059,7 +2089,7 @@ function BottomNav({ activeTab, setActiveTab }) {
    WELCOME SCREEN
    ========================================================= */
 
-function Welcome({ onStart, onShare, onCapture, onChoose, onContact }) {
+function Welcome({ onStart, onShare, onCapture, onChoose, onContact, external }) {
   useEffect(() => {
     const link = document.createElement('link');
     link.href = 'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap';
@@ -2136,6 +2166,9 @@ function Welcome({ onStart, onShare, onCapture, onChoose, onContact }) {
 
         {/* HERO LEAD FORM — embedded inline conversion form */}
         <HeroLeadForm onCapture={onCapture} />
+
+        {/* TEAM INTRO VIDEO — appears only when admin sets external.videoIntroUrl */}
+        <VideoIntroCard external={external} />
 
         {/* Buy / Sell / Invest split cards */}
         <PathSplitCards onChoose={onChoose} compact />
@@ -2335,10 +2368,12 @@ function Field({ label, value, onChange, placeholder, type = 'text' }) {
    HOME TAB
    ========================================================= */
 
-function HomeTab({ client, buyPct, sellPct, moments, liveConfig, programs, wins, workshops, team, onGoTo, onContact, onShare }) {
+function HomeTab({ client, buyPct, sellPct, moments, liveConfig, programs, wins, workshops, team, reviews, external, onGoTo, onContact, onShare }) {
   const activePrograms = programs || PROGRAMS;
   const activeWins = wins || WINS;
   const activeWorkshops = workshops || WORKSHOPS;
+  const activeReviews = reviews || STARTER_REVIEWS;
+  const activeExternal = external || EXTERNAL_DEFAULTS;
   const first = client.name ? client.name.split(' ')[0] : '';
   const showSeller = client.type === 'seller' || client.type === 'both';
   const showBuyer = client.type !== 'seller';
@@ -2627,6 +2662,9 @@ function HomeTab({ client, buyPct, sellPct, moments, liveConfig, programs, wins,
         </div>
       </a>
 
+      {/* GOOGLE REVIEWS section */}
+      <ReviewsSection reviews={activeReviews} external={activeExternal} />
+
       {/* LOCAL AUTHORITY — Polk County market blocks */}
       <LocalAuthorityBlocks onContact={onContact} />
 
@@ -2635,6 +2673,114 @@ function HomeTab({ client, buyPct, sellPct, moments, liveConfig, programs, wins,
 
       {/* Spacer for sticky mobile CTA bar */}
       <div className="h-14 sm:hidden" aria-hidden="true" />
+    </div>
+  );
+}
+
+function ReviewsSection({ reviews, external }) {
+  if (!reviews || reviews.length === 0) return null;
+  const ext = external || EXTERNAL_DEFAULTS;
+
+  return (
+    <div>
+      <div className="flex items-end justify-between mb-3">
+        <div>
+          <p className="text-xs uppercase tracking-[0.2em]" style={{ color: C.gold }}>
+            <span className="inline-flex items-center gap-1"><Star size={11} fill={C.gold} /> Client reviews</span>
+          </p>
+          <p style={serif} className="text-xl leading-tight">5-star service, in their words.</p>
+        </div>
+        <a href={ext.googleBusinessUrl}
+           target="_blank" rel="noopener noreferrer"
+           onClick={() => trackEvent('view_reviews')}
+           className="text-xs flex items-center gap-0.5"
+           style={{ color: C.gold }}>
+          See all <ChevronRight size={12} />
+        </a>
+      </div>
+
+      <div className="flex gap-3 overflow-x-auto pb-2 -mx-5 px-5 snap-x snap-mandatory">
+        {reviews.map(r => (
+          <div key={r.id}
+            className="snap-start flex-shrink-0 w-72 rounded-2xl p-4"
+            style={{ backgroundColor: C.paper, border: `1px solid ${C.line}` }}>
+            <div className="flex gap-0.5 mb-2">
+              {[1,2,3,4,5].map(i => (
+                <Star key={i} size={12}
+                      fill={i <= (r.stars || 5) ? C.gold : 'transparent'}
+                      color={C.gold} />
+              ))}
+              {r.source === 'google' && (
+                <span className="ml-auto text-[10px] font-bold uppercase tracking-wider"
+                      style={{ color: C.muted }}>
+                  Google
+                </span>
+              )}
+            </div>
+            <p className="text-sm italic leading-relaxed mb-3" style={{ color: C.charcoal }}>
+              &ldquo;{r.text}&rdquo;
+            </p>
+            <p className="text-xs font-semibold" style={{ color: C.ink }}>
+              {r.author}
+              {r.date && (
+                <span className="font-normal ml-1" style={{ color: C.muted }}>· {r.date}</span>
+              )}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Leave us a review CTA */}
+      <a href={ext.googleReviewUrl}
+         target="_blank" rel="noopener noreferrer"
+         onClick={() => trackEvent('contact', { method: 'leave_review' })}
+         style={{ backgroundColor: C.ink, color: C.cream, border: `1px solid ${C.gold}` }}
+         className="mt-3 w-full py-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition">
+        <Star size={13} fill={C.gold} color={C.gold} />
+        Leave The Lewis Team a Google review
+      </a>
+    </div>
+  );
+}
+
+function VideoIntroCard({ external }) {
+  const ext = external || EXTERNAL_DEFAULTS;
+  if (!ext.videoIntroUrl) return null;
+  // Extract YouTube ID for an embed if a watch URL was pasted
+  const url = ext.videoIntroUrl;
+  let embedUrl = url;
+  const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]+)/);
+  if (ytMatch) embedUrl = `https://www.youtube.com/embed/${ytMatch[1]}`;
+  const isEmbed = embedUrl.includes('youtube.com/embed') || embedUrl.includes('player.vimeo');
+
+  return (
+    <div className="rounded-2xl overflow-hidden mb-5"
+         style={{ border: `1px solid ${C.gold}` }}>
+      <div className="px-4 py-2 flex items-center gap-2"
+           style={{ backgroundColor: C.ink, color: C.cream }}>
+        <Sparkles size={12} style={{ color: C.gold }} />
+        <p className="text-[10px] uppercase tracking-[0.2em] font-bold" style={{ color: C.gold }}>
+          Watch
+        </p>
+        <p className="text-xs flex-1 truncate">{ext.videoIntroTitle || 'Meet the team'}</p>
+      </div>
+      <div className="relative" style={{ aspectRatio: '16/9', background: '#000' }}>
+        {isEmbed ? (
+          <iframe src={embedUrl}
+            title={ext.videoIntroTitle || 'Team intro'}
+            className="absolute inset-0 w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen />
+        ) : (
+          <video src={embedUrl} poster={ext.videoIntroPoster} controls
+                 className="absolute inset-0 w-full h-full" />
+        )}
+      </div>
+      {ext.videoIntroSub && (
+        <div className="px-4 py-3" style={{ backgroundColor: C.ink, color: C.cream }}>
+          <p className="text-xs opacity-85">{ext.videoIntroSub}</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -3891,8 +4037,9 @@ function InvestTab({ steps, completed, toggle, openStep, setOpenStep, onContact 
    LISTINGS TAB
    ========================================================= */
 
-function ListingsTab({ listings, onContact, onShare }) {
+function ListingsTab({ listings, onContact, onShare, external }) {
   const list = listings || LISTINGS;
+  const ext = external || EXTERNAL_DEFAULTS;
   const [filter, setFilter] = useState('all');
   const filters = [
     { id: 'all', l: 'All' },
@@ -3931,16 +4078,38 @@ function ListingsTab({ listings, onContact, onShare }) {
         )}
       </div>
 
-      <div className="mt-6 rounded-2xl p-5 text-center"
+      {/* Full MLS Search portal */}
+      <a href={ext.mlsSearchUrl}
+         target="_blank" rel="noopener noreferrer"
+         onClick={() => trackEvent('view_listing', { source: 'mls_search_button' })}
+         style={{ backgroundColor: C.gold, color: C.ink }}
+         className="mt-5 w-full block py-4 rounded-2xl text-sm font-bold text-center active:scale-[0.98] transition">
+        <Search size={14} className="inline mr-1" />
+        Search the entire Central FL MLS →
+      </a>
+      <p className="text-[11px] text-center mt-1.5" style={{ color: C.muted }}>
+        Live MLS feed · updated every 15 min
+      </p>
+
+      {/* Custom Search Request — leads who want personal curation */}
+      <div className="mt-6 rounded-2xl p-5"
            style={{ backgroundColor: C.ink, color: C.cream, border: `1px solid ${C.gold}` }}>
-        <p style={serif} className="text-xl leading-tight mb-1">Don't see the one?</p>
-        <p className="text-xs opacity-80 mb-4">
-          We have access to every MLS listing in Central Florida plus off-market and coming-soon homes.
-        </p>
+        <div className="flex items-start gap-3 mb-3">
+          <div className="w-10 h-10 rounded-xl grid place-items-center flex-shrink-0"
+               style={{ backgroundColor: C.gold, color: C.ink }}>
+            <Sparkles size={18} />
+          </div>
+          <div className="flex-1">
+            <p style={serif} className="text-lg leading-tight">Custom Search Request</p>
+            <p className="text-xs opacity-80 mt-0.5">
+              Tell us your criteria — we'll send 3-5 hand-picked properties (including off-market and coming-soon).
+            </p>
+          </div>
+        </div>
         <button onClick={() => onContact('contact:question')}
           style={{ backgroundColor: C.gold, color: C.ink }}
-          className="px-5 py-2.5 rounded-full text-xs font-semibold">
-          Tell us what you're looking for
+          className="w-full py-3 rounded-lg text-xs font-bold">
+          Get personally-curated listings →
         </button>
       </div>
     </div>
