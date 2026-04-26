@@ -753,6 +753,7 @@ const CRM_STAGES = [
 
 const CRM_SOURCES = [
   { id: 'client_portal', label: 'Client Portal \u2728' },
+  { id: 'lead_magnet', label: "Free Buyer\u2019s Guide download" },
   { id: 'mls_import', label: 'MLS Matrix import' },
   { id: 'app_contact', label: 'App contact form' },
   { id: 'app_valuation', label: 'Home valuation request' },
@@ -1725,6 +1726,9 @@ export default function App() {
       {modal === 'profile' && (
         <ClientProfileForm client={client} onCapture={captureLead} onClose={() => setModal(null)} />
       )}
+      {modal === 'leadmagnet' && (
+        <LeadMagnetForm client={client} onCapture={captureLead} onClose={() => setModal(null)} />
+      )}
       {shareData && (
         <ShareMenu data={shareData} onClose={() => setShareData(null)} />
       )}
@@ -2230,6 +2234,41 @@ function HomeTab({ client, buyPct, sellPct, moments, liveConfig, programs, wins,
           <div className="w-9 h-9 rounded-full grid place-items-center"
                style={{ backgroundColor: C.ink, color: C.gold }}>
             <ArrowRight size={16} strokeWidth={2.5} />
+          </div>
+        </div>
+      </button>
+
+      {/* FREE BUYER'S GUIDE — lead magnet CTA */}
+      <button onClick={() => onContact('leadmagnet')}
+        className="w-full relative overflow-hidden rounded-3xl p-5 text-left active:scale-[0.99] transition"
+        style={{
+          backgroundColor: C.ink,
+          color: C.cream,
+          border: `1px solid ${C.gold}`,
+          boxShadow: `0 8px 24px rgba(15,42,63,0.25)`,
+        }}>
+        <div className="absolute -right-6 -bottom-6 w-32 h-32 rounded-full opacity-20 pointer-events-none"
+             style={{ background: `radial-gradient(circle, ${C.gold}, transparent 70%)` }} />
+        <div className="flex items-start gap-4 relative">
+          <div className="w-12 h-12 rounded-xl grid place-items-center flex-shrink-0"
+               style={{ backgroundColor: C.gold, color: C.ink }}>
+            <BookOpen size={22} strokeWidth={2.2} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em] mb-1"
+               style={{ color: C.gold }}>
+              Free download &middot; instant access
+            </p>
+            <p style={serif} className="text-xl leading-tight">
+              Polk County Buyer's Guide
+            </p>
+            <p className="text-xs opacity-85 mt-1 leading-relaxed">
+              The 6-step path from pre-approval to keys + the 5 mistakes first-time Florida buyers make.
+            </p>
+            <div className="inline-flex items-center gap-1 mt-3 text-xs font-bold"
+                 style={{ color: C.gold }}>
+              Get the free guide <ArrowRight size={12} strokeWidth={2.5} />
+            </div>
           </div>
         </div>
       </button>
@@ -4847,6 +4886,138 @@ function ClientProfileForm({ client, onCapture, onClose }) {
           I agree to receive occasional texts, emails, and cards from The Lewis Team \u2014 birthday wishes, home anniversary notes, market updates. You can opt out any time by replying STOP.
         </span>
       </label>
+    </ModalShell>
+  );
+}
+
+function LeadMagnetForm({ client, onCapture, onClose }) {
+  const [f, setF] = useState({
+    name: client?.name || '',
+    email: client?.email || '',
+    phone: client?.phone || '',
+    type: '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+  const valid = f.name.trim() && /\S+@\S+\.\S+/.test(f.email);
+
+  const submit = async () => {
+    if (!valid || submitting) return;
+    setSubmitting(true);
+    haptic('success');
+
+    if (onCapture) {
+      onCapture({
+        name: f.name.trim(),
+        email: f.email.trim(),
+        phone: f.phone.trim(),
+        type: f.type || 'buyer',
+        source: 'lead_magnet',
+        stage: 'new',
+        tags: ['lead_magnet', 'buyer_guide_download'],
+        notes: 'Downloaded the free Polk County Buyer’s Guide.',
+      });
+    }
+
+    await pushEmailSubmission(`📘 New Buyer’s Guide download: ${f.name.trim()}`, {
+      'Form type': 'Free Buyer’s Guide download',
+      'Name': f.name.trim(),
+      'Email': f.email.trim(),
+      'Phone': f.phone.trim() || '(not provided)',
+      'Buyer type': f.type || '(not specified)',
+      'Submitted at': new Date().toISOString(),
+    });
+
+    setSubmitting(false);
+    setDone(true);
+  };
+
+  if (done) {
+    const guideUrl = (typeof window !== 'undefined' ? window.location.origin : '') + '/buyer-guide';
+    return (
+      <ModalShell title="Your guide is ready!" onClose={onClose}>
+        <div className="text-center py-4">
+          <div className="w-20 h-20 mx-auto mb-4 rounded-full grid place-items-center"
+               style={{ backgroundColor: C.gold, color: C.ink }}>
+            <BookOpen size={44} strokeWidth={1.8} />
+          </div>
+          <p style={serif} className="text-2xl leading-tight mb-2">
+            Open your guide →
+          </p>
+          <p className="text-sm mb-5" style={{ color: C.muted }}>
+            We also sent the link to <strong style={{ color: C.ink }}>{f.email.trim()}</strong> so you can reference it later.
+          </p>
+
+          <a href={guideUrl} target="_blank" rel="noopener noreferrer"
+             style={{ backgroundColor: C.gold, color: C.ink }}
+             className="inline-flex items-center justify-center gap-2 w-full py-3.5 rounded-xl text-sm font-bold active:scale-[0.98] transition mb-2">
+            <BookOpen size={16} /> Read the guide
+          </a>
+
+          <button onClick={onClose}
+            style={{ backgroundColor: C.paper, color: C.ink, border: `1px solid ${C.line}` }}
+            className="w-full py-3 rounded-xl text-xs font-semibold active:scale-[0.98] transition">
+            Maybe later
+          </button>
+
+          <p className="text-[10px] mt-3" style={{ color: C.muted }}>
+            ✨ Lancey &amp; Stacy will say hello soon. No spam, opt out anytime.
+          </p>
+        </div>
+      </ModalShell>
+    );
+  }
+
+  return (
+    <ModalShell
+      title="Free Polk County Buyer's Guide"
+      sub="The 6-step path + 5 mistakes first-time Florida buyers make. Instant access — your email, no spam."
+      onClose={onClose}
+      footer={
+        <button onClick={valid && !submitting ? submit : undefined}
+          disabled={!valid || submitting}
+          style={{
+            backgroundColor: valid ? C.gold : 'rgba(200,152,90,0.35)',
+            color: valid ? C.ink : 'rgba(15,42,63,0.45)',
+          }}
+          className="w-full py-3.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 active:scale-[0.98] transition disabled:cursor-not-allowed">
+          {submitting ? 'Sending…' : (<><BookOpen size={15} /> Get the free guide</>)}
+        </button>
+      }>
+      <LightField label="Your name" value={f.name}
+        onChange={v => setF({ ...f, name: v })} placeholder="First and last" />
+      <LightField label="Email" type="email" value={f.email}
+        onChange={v => setF({ ...f, email: v })} placeholder="you@email.com" />
+      <LightField label="Phone (optional)" type="tel" value={f.phone}
+        onChange={v => setF({ ...f, phone: v })} placeholder="555-555-5555" />
+
+      <div>
+        <label className="block text-[11px] uppercase tracking-[0.18em] mb-2" style={{ color: C.muted }}>
+          What best describes you? (optional)
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { v: 'buyer', l: 'First-time' },
+            { v: 'move_up', l: 'Move-up' },
+            { v: 'investor', l: 'Investor' },
+          ].map(opt => (
+            <button key={opt.v}
+              onClick={() => setF({ ...f, type: opt.v })}
+              style={{
+                backgroundColor: f.type === opt.v ? C.gold : C.paper,
+                color: C.ink,
+                border: `1px solid ${f.type === opt.v ? C.gold : C.line}`,
+              }}
+              className="px-3 py-2 rounded-lg text-xs font-semibold active:scale-[0.98]">
+              {opt.l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <p className="text-[10px] text-center" style={{ color: C.muted }}>
+        We'll text/email occasional updates from The Lewis Team. Reply STOP anytime.
+      </p>
     </ModalShell>
   );
 }

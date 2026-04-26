@@ -6,7 +6,8 @@
   "rewrites": [
     { "source": "/communities/:slug", "destination": "/communities/:slug.html" },
     { "source": "/communities", "destination": "/communities/index.html" },
-    { "source": "/((?!api|brand|assets|communities|.*\\..*).*)", "destination": "/index.html" }
+    { "source": "/buyer-guide", "destination": "/buyer-guide.html" },
+    { "source": "/((?!api|brand|assets|communities|buyer-guide|.*\\..*).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
