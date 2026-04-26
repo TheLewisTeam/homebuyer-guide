@@ -1209,8 +1209,8 @@ const ADMIN_PIN = '0428';
    Pixel: get from business.facebook.com > Events Manager
    ========================================================= */
 const ANALYTICS = {
-  ga4: '',         // e.g. 'G-XXXXXXXXXX'
-  metaPixel: '',   // e.g. '1234567890123456'
+  ga4: 'G-NM2W28Z3EV',
+  metaPixel: '2039522220327025',
 };
 
 function loadAnalytics() {
