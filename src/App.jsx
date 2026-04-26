@@ -1203,6 +1203,95 @@ async function cloudTestConnection() {
 // Hardcoded admin PIN — change here if Lancey ever needs to update
 const ADMIN_PIN = '0428';
 
+/* =========================================================
+   ANALYTICS — paste your IDs once and tracking fires automatically.
+   GA4: get from analytics.google.com > Admin > Data Streams
+   Pixel: get from business.facebook.com > Events Manager
+   ========================================================= */
+const ANALYTICS = {
+  ga4: '',         // e.g. 'G-XXXXXXXXXX'
+  metaPixel: '',   // e.g. '1234567890123456'
+};
+
+function loadAnalytics() {
+  if (typeof window === 'undefined') return;
+  // Google Analytics 4
+  if (ANALYTICS.ga4 && !window.__ga4_loaded) {
+    window.__ga4_loaded = true;
+    const s = document.createElement('script');
+    s.async = true;
+    s.src = `https://www.googletagmanager.com/gtag/js?id=${ANALYTICS.ga4}`;
+    document.head.appendChild(s);
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function() { window.dataLayer.push(arguments); };
+    window.gtag('js', new Date());
+    window.gtag('config', ANALYTICS.ga4);
+  }
+  // Meta (Facebook) Pixel
+  if (ANALYTICS.metaPixel && !window.__pixel_loaded) {
+    window.__pixel_loaded = true;
+    !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+      n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+    window.fbq('init', ANALYTICS.metaPixel);
+    window.fbq('track', 'PageView');
+  }
+}
+
+function trackEvent(name, props = {}) {
+  try {
+    if (typeof window !== 'undefined' && window.gtag) {
+      window.gtag('event', name, props);
+    }
+    if (typeof window !== 'undefined' && window.fbq) {
+      // Map common GA4 events to FB pixel standard events
+      const fbName = name === 'lead' ? 'Lead'
+                   : name === 'contact' ? 'Contact'
+                   : name === 'view_listing' ? 'ViewContent'
+                   : name === 'sign_up' ? 'CompleteRegistration'
+                   : name;
+      window.fbq('track', fbName, props);
+    }
+  } catch {}
+}
+
+// Pull UTM params + click ID from URL — used for source attribution in CRM
+function getTrafficSource() {
+  if (typeof window === 'undefined') return { source: '', campaign: '', medium: '' };
+  try {
+    // Cache in sessionStorage so source persists across page reloads in the same session
+    const cached = window.sessionStorage?.getItem('lt_traffic');
+    if (cached) return JSON.parse(cached);
+
+    const params = new URLSearchParams(window.location.search);
+    const ref = (document.referrer || '').toLowerCase();
+    let source = params.get('utm_source') || '';
+    const medium = params.get('utm_medium') || '';
+    const campaign = params.get('utm_campaign') || '';
+
+    // Auto-detect from referrer when no explicit UTM
+    if (!source) {
+      if (ref.includes('facebook.com') || ref.includes('fb.com') || params.get('fbclid')) source = 'facebook';
+      else if (ref.includes('instagram.com') || ref.includes('l.instagram')) source = 'instagram';
+      else if (ref.includes('tiktok.com')) source = 'tiktok';
+      else if (ref.includes('youtube.com') || ref.includes('youtu.be')) source = 'youtube';
+      else if (ref.includes('google.') || ref.includes('bing.') || params.get('gclid')) source = 'google';
+      else if (ref.includes('zillow.com')) source = 'zillow';
+      else if (ref.includes('realtor.com') || ref.includes('homes.com')) source = 'realtor_portal';
+      else if (ref) source = 'referral';
+      else source = 'direct';
+    }
+
+    const traffic = { source, medium, campaign };
+    window.sessionStorage?.setItem('lt_traffic', JSON.stringify(traffic));
+    return traffic;
+  } catch {
+    return { source: 'direct', medium: '', campaign: '' };
+  }
+}
+
 // Resolve an icon — accepts a React component ref (function OR forwardRef object from lucide)
 // OR a string name (for cloud-synced data where JSON stripped the function).
 // JSON.stringify drops Symbol values, so a lucide forwardRef stored in Supabase comes back as
@@ -1431,7 +1520,26 @@ export default function App() {
     link.href = 'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap';
     link.rel = 'stylesheet';
     document.head.appendChild(link);
+    // Load analytics + capture traffic source on first visit
+    loadAnalytics();
+    getTrafficSource(); // primes sessionStorage cache
     return () => { document.head.removeChild(link); };
+  }, []);
+
+  // Time-delayed lead-magnet popup — fires once per session after 12s on Welcome OR Home
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.sessionStorage?.getItem('lt_popup_shown')) return;
+    const t = setTimeout(() => {
+      // Only show on welcome/main screen, not when admin/modals are open
+      if (!modal) {
+        setModal('leadmagnet');
+        try { window.sessionStorage.setItem('lt_popup_shown', '1'); } catch {}
+        trackEvent('lead_magnet_popup_shown');
+      }
+    }, 12000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Android hardware back button — intercept popstate (Capacitor bridges hardware back → popstate)
@@ -1503,6 +1611,9 @@ export default function App() {
   // Capture a lead from anywhere in the app. Returns the new lead id.
   const captureLead = (partial) => {
     const now = new Date().toISOString();
+    const traffic = getTrafficSource();
+    // Track conversion in GA4 + Pixel
+    trackEvent('lead', { source: partial.source || 'app_contact', traffic_source: traffic.source });
     const lead = {
       id: `lead_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       name: partial.name || '',
@@ -1511,6 +1622,9 @@ export default function App() {
       type: partial.type || 'other',
       stage: partial.stage || 'new',
       source: partial.source || 'app_contact',
+      trafficSource: traffic.source,
+      utmCampaign: traffic.campaign,
+      utmMedium: traffic.medium,
       budget: partial.budget || null,
       interests: partial.interests || '',
       address: partial.address || '',
@@ -1616,7 +1730,13 @@ export default function App() {
   };
 
   if (screen === 'welcome') {
-    return <Welcome onStart={() => setScreen('portal')} onShare={openShare} />;
+    return <Welcome
+      onStart={() => setScreen('portal')}
+      onShare={openShare}
+      onCapture={captureLead}
+      onChoose={choosePath}
+      onContact={setModal}
+    />;
   }
   if (screen === 'portal') {
     return <Portal
@@ -1704,6 +1824,9 @@ export default function App() {
         )}
       </main>
 
+      {activeTab === 'home' && (
+        <StickyMobileCtaBar onSearchHomes={() => { trackEvent('contact', { method: 'search_sticky' }); setActiveTab('listings'); }} />
+      )}
       <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
 
       {modal && modal.startsWith('contact:') && (
@@ -1914,7 +2037,7 @@ function BottomNav({ activeTab, setActiveTab }) {
    WELCOME SCREEN
    ========================================================= */
 
-function Welcome({ onStart, onShare }) {
+function Welcome({ onStart, onShare, onCapture, onChoose, onContact }) {
   useEffect(() => {
     const link = document.createElement('link');
     link.href = 'https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap';
@@ -1989,6 +2112,12 @@ function Welcome({ onStart, onShare }) {
           {AGENT.mission}
         </p>
 
+        {/* HERO LEAD FORM — embedded inline conversion form */}
+        <HeroLeadForm onCapture={onCapture} />
+
+        {/* Buy / Sell / Invest split cards */}
+        <PathSplitCards onChoose={onChoose} compact />
+
         {/* Install prompt (iOS + Android) */}
         <div className="mb-5">
           <InstallPrompt />
@@ -1998,6 +2127,9 @@ function Welcome({ onStart, onShare }) {
         <div className="-mx-6 mb-6">
           <BrandMomentsCarouselDark onShare={onShare} />
         </div>
+
+        {/* Final CTA — call / text / get guide */}
+        <FinalCtaSection onContact={onContact} />
       </div>
 
       {/* Sticky CTA */}
@@ -2472,6 +2604,12 @@ function HomeTab({ client, buyPct, sellPct, moments, liveConfig, programs, wins,
           <ChevronRight size={18} style={{ color: C.gold }} />
         </div>
       </a>
+
+      {/* FINAL CTA — closing conversion */}
+      <FinalCtaSection onContact={onContact} />
+
+      {/* Spacer for sticky mobile CTA bar */}
+      <div className="h-14 sm:hidden" aria-hidden="true" />
     </div>
   );
 }
@@ -4887,6 +5025,229 @@ function ClientProfileForm({ client, onCapture, onClose }) {
         </span>
       </label>
     </ModalShell>
+  );
+}
+
+function HeroLeadForm({ onCapture }) {
+  const [f, setF] = useState({ name: '', phone: '', email: '', interest: '', location: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+  const valid = f.name.trim() && (f.email.trim() || f.phone.trim());
+
+  const submit = async () => {
+    if (!valid || submitting) return;
+    setSubmitting(true);
+    haptic('success');
+    if (onCapture) {
+      onCapture({
+        name: f.name.trim(),
+        email: f.email.trim(),
+        phone: f.phone.trim(),
+        type: f.interest === 'Buying' ? 'buyer'
+            : f.interest === 'Selling' ? 'seller'
+            : f.interest === 'Investing' ? 'investor'
+            : 'other',
+        source: 'website_hero',
+        stage: 'new',
+        interests: f.location.trim() ? `Looking in ${f.location.trim()}` : '',
+        tags: ['hero_form', 'website_landing'],
+      });
+    }
+    await pushEmailSubmission(`🔑 New website lead: ${f.name.trim()}`, {
+      'Form type': 'Homepage hero lead form',
+      'Name': f.name.trim(),
+      'Phone': f.phone.trim() || '(not provided)',
+      'Email': f.email.trim() || '(not provided)',
+      'Interested in': f.interest || '(not specified)',
+      'Preferred location': f.location.trim() || '(not specified)',
+      'Submitted at': new Date().toISOString(),
+    });
+    trackEvent('contact', { source: 'website_hero', interest: f.interest });
+    setSubmitting(false);
+    setDone(true);
+  };
+
+  if (done) {
+    return (
+      <div className="rounded-2xl p-5 mb-5 text-center"
+           style={{ backgroundColor: 'rgba(74,124,89,0.18)', border: `1px solid ${C.success}` }}>
+        <CheckCircle2 size={36} style={{ color: C.success, margin: '0 auto 8px' }} />
+        <p style={serif} className="text-xl leading-tight mb-1">You're in!</p>
+        <p className="text-xs opacity-80">
+          Lancey &amp; Stacy were just notified. Expect a personal call/text shortly.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl p-5 mb-5"
+         style={{
+           backgroundColor: 'rgba(255,255,255,0.06)',
+           border: `1px solid ${C.gold}`,
+           boxShadow: `0 4px 20px rgba(200,152,90,0.15)`,
+         }}>
+      <div className="flex items-center gap-2 mb-1">
+        <Sparkles size={12} style={{ color: C.gold }} />
+        <p className="text-[10px] uppercase tracking-[0.22em] font-bold" style={{ color: C.gold }}>
+          Connect with us
+        </p>
+      </div>
+      <p style={serif} className="text-xl leading-tight mb-3">
+        Tell us about your move.
+      </p>
+
+      <Field label="Your name" value={f.name}
+        onChange={v => setF({ ...f, name: v })} placeholder="First and last" />
+      <div className="grid grid-cols-2 gap-2 mt-2">
+        <Field label="Phone" type="tel" value={f.phone}
+          onChange={v => setF({ ...f, phone: v })} placeholder="555-555-5555" />
+        <Field label="Email" type="email" value={f.email}
+          onChange={v => setF({ ...f, email: v })} placeholder="you@email.com" />
+      </div>
+
+      <div className="mt-3">
+        <label className="block text-[11px] uppercase tracking-[0.22em] opacity-60 mb-2">
+          I'm interested in
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          {['Buying', 'Selling', 'Investing'].map(opt => (
+            <button key={opt}
+              onClick={() => setF({ ...f, interest: opt })}
+              style={{
+                backgroundColor: f.interest === opt ? C.gold : 'rgba(255,255,255,0.04)',
+                color: f.interest === opt ? C.ink : C.cream,
+                border: f.interest === opt ? `1px solid ${C.gold}` : `1px solid rgba(255,255,255,0.12)`,
+              }}
+              className="px-2 py-2 rounded-lg text-xs font-semibold transition active:scale-[0.98]">
+              {opt}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-3">
+        <Field label="Preferred location (optional)" value={f.location}
+          onChange={v => setF({ ...f, location: v })} placeholder="Winter Haven, Lakeland..." />
+      </div>
+
+      <button onClick={valid && !submitting ? submit : undefined}
+        disabled={!valid || submitting}
+        style={{
+          backgroundColor: valid ? C.gold : 'rgba(200,152,90,0.3)',
+          color: valid ? C.ink : 'rgba(245,239,230,0.5)',
+        }}
+        className="w-full mt-4 py-3.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition active:scale-[0.98] disabled:cursor-not-allowed">
+        {submitting ? 'Sending…' : (<>Send to The Lewis Team <Send size={14} /></>)}
+      </button>
+      <p className="text-[10px] opacity-50 text-center mt-2">
+        We'll text or call within 24 hours. No spam, ever.
+      </p>
+    </div>
+  );
+}
+
+function PathSplitCards({ onChoose, compact }) {
+  return (
+    <div className="mb-5">
+      <p className="text-[10px] uppercase tracking-[0.22em] mb-3" style={{ color: C.gold }}>
+        <span className="inline-flex items-center gap-1">
+          <Target size={11} /> Choose your path
+        </span>
+      </p>
+      <div className="grid grid-cols-1 gap-2">
+        {PATHS.map(p => {
+          const Icon = p.icon;
+          return (
+            <button key={p.id}
+              onClick={() => onChoose && onChoose(p.id)}
+              className="w-full rounded-xl p-4 text-left active:scale-[0.99] transition flex items-center gap-3"
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.04)',
+                border: `1px solid ${C.gold}`,
+                color: C.cream,
+              }}>
+              <div className="w-10 h-10 rounded-lg grid place-items-center flex-shrink-0"
+                   style={{ backgroundColor: C.gold, color: C.ink }}>
+                <Icon size={18} strokeWidth={2.2} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p style={serif} className="text-base leading-tight">{p.title}</p>
+                <p className="text-[11px] opacity-70 truncate">{p.tagline}</p>
+              </div>
+              <ArrowRight size={16} style={{ color: C.gold }} />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function FinalCtaSection({ onContact }) {
+  return (
+    <div className="rounded-2xl p-5 mb-2"
+         style={{
+           background: `linear-gradient(135deg, ${C.gold}, ${C.goldDeep})`,
+           color: C.ink,
+         }}>
+      <p style={serif} className="text-2xl leading-tight mb-1">
+        Ready to make your next move?
+      </p>
+      <p className="text-xs opacity-85 mb-4">
+        Tap below for a personal call, text, or strategy session.
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        <a href={`tel:${AGENT.phone}`}
+           onClick={() => trackEvent('contact', { method: 'call_final_cta' })}
+           style={{ backgroundColor: C.ink, color: C.cream }}
+           className="py-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98]">
+          <Phone size={13} /> Call us
+        </a>
+        <a href={`sms:${AGENT.coAgent.phone}`}
+           onClick={() => trackEvent('contact', { method: 'text_final_cta' })}
+           style={{ backgroundColor: C.ink, color: C.cream }}
+           className="py-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98]">
+          <MessageSquare size={13} /> Text us
+        </a>
+        <button
+          onClick={() => { trackEvent('contact', { method: 'consult_final_cta' }); onContact && onContact('contact:question'); }}
+          style={{ backgroundColor: 'rgba(15,42,63,0.18)', color: C.ink, border: `1px solid ${C.ink}` }}
+          className="col-span-2 py-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 active:scale-[0.98]">
+          <Calendar size={13} /> Schedule a consultation
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function StickyMobileCtaBar({ onSearchHomes }) {
+  return (
+    <div
+      className="fixed bottom-[68px] left-0 right-0 z-30 px-3 py-2 grid grid-cols-3 gap-2 sm:hidden"
+      style={{
+        backgroundColor: 'rgba(15,42,63,0.96)',
+        borderTop: `1px solid ${C.gold}`,
+        backdropFilter: 'blur(8px)',
+      }}>
+      <a href={`tel:${AGENT.phone}`}
+         onClick={() => trackEvent('contact', { method: 'call_sticky' })}
+         style={{ backgroundColor: C.gold, color: C.ink }}
+         className="py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 active:scale-[0.98]">
+        <Phone size={13} /> Call
+      </a>
+      <a href={`sms:${AGENT.coAgent.phone}`}
+         onClick={() => trackEvent('contact', { method: 'text_sticky' })}
+         style={{ backgroundColor: 'rgba(245,239,230,0.12)', color: C.cream, border: `1px solid rgba(245,239,230,0.2)` }}
+         className="py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 active:scale-[0.98]">
+        <MessageSquare size={13} /> Text
+      </a>
+      <button onClick={onSearchHomes}
+         style={{ backgroundColor: 'rgba(245,239,230,0.12)', color: C.cream, border: `1px solid rgba(245,239,230,0.2)` }}
+         className="py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1 active:scale-[0.98]">
+        <ShoppingBag size={13} /> Search
+      </button>
+    </div>
   );
 }
 
