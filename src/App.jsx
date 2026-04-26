@@ -1531,14 +1531,36 @@ export default function App() {
     if (typeof window === 'undefined') return;
     if (window.sessionStorage?.getItem('lt_popup_shown')) return;
     const t = setTimeout(() => {
-      // Only show on welcome/main screen, not when admin/modals are open
       if (!modal) {
         setModal('leadmagnet');
         try { window.sessionStorage.setItem('lt_popup_shown', '1'); } catch {}
-        trackEvent('lead_magnet_popup_shown');
+        trackEvent('lead_magnet_popup_shown', { trigger: 'time_delay' });
       }
     }, 12000);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Exit-intent popup (desktop only — mouse leaving viewport top)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.sessionStorage?.getItem('lt_exit_shown')) return;
+    // Skip on touch-only devices (mobile doesn't have hover/exit-intent)
+    const isTouchDevice = window.matchMedia('(hover: none)').matches;
+    if (isTouchDevice) return;
+
+    const handler = (e) => {
+      // Trigger when mouse leaves through the top of the viewport
+      if (e.clientY <= 0 && !window.sessionStorage.getItem('lt_exit_shown')) {
+        try { window.sessionStorage.setItem('lt_exit_shown', '1'); } catch {}
+        if (!modal) {
+          setModal('leadmagnet');
+          trackEvent('lead_magnet_popup_shown', { trigger: 'exit_intent' });
+        }
+      }
+    };
+    document.addEventListener('mouseleave', handler);
+    return () => document.removeEventListener('mouseleave', handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2605,11 +2627,56 @@ function HomeTab({ client, buyPct, sellPct, moments, liveConfig, programs, wins,
         </div>
       </a>
 
+      {/* LOCAL AUTHORITY — Polk County market blocks */}
+      <LocalAuthorityBlocks onContact={onContact} />
+
       {/* FINAL CTA — closing conversion */}
       <FinalCtaSection onContact={onContact} />
 
       {/* Spacer for sticky mobile CTA bar */}
       <div className="h-14 sm:hidden" aria-hidden="true" />
+    </div>
+  );
+}
+
+function LocalAuthorityBlocks({ onContact }) {
+  const blocks = [
+    { id: 'wh', title: 'Winter Haven Homes', sub: 'Chain of Lakes, 33880, 33884', cta: 'See Winter Haven →', href: '/communities/winter-haven', icon: HomeIcon },
+    { id: 'mkt', title: 'Polk County Market', sub: 'Updated weekly · live MLS data', cta: 'Get this week’s update', onClick: () => onContact('contact:question'), icon: TrendingUp },
+    { id: 'newcon', title: 'New Construction', sub: 'D.R. Horton Flex Cash + builder warranty', cta: 'See new builds', onClick: () => onContact('contact:showing'), icon: Building2 },
+    { id: 'first', title: 'First-Time Buyer Help', sub: 'Hometown Heroes DPA up to $35K', cta: 'Check eligibility', onClick: () => onContact('contact:preapproval'), icon: Gift },
+    { id: 'val', title: 'Free Home Value', sub: 'Real CMA, not a Zestimate', cta: 'Get my home value', onClick: () => onContact('valuation'), icon: DollarSign },
+  ];
+  return (
+    <div>
+      <div className="mb-3">
+        <p className="text-xs uppercase tracking-[0.2em]" style={{ color: C.muted }}>Local authority</p>
+        <p style={serif} className="text-xl leading-tight">Polk County, by the team that lives here.</p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {blocks.map(b => {
+          const Icon = b.icon;
+          const Comp = b.href ? 'a' : 'button';
+          const props = b.href ? { href: b.href } : { onClick: b.onClick };
+          return (
+            <Comp key={b.id} {...props}
+              style={{ backgroundColor: C.paper, border: `1px solid ${C.line}`, color: C.ink }}
+              className="rounded-2xl p-4 text-left active:scale-[0.99] transition flex items-start gap-3 no-underline">
+              <div className="w-10 h-10 rounded-xl grid place-items-center flex-shrink-0"
+                   style={{ backgroundColor: C.ink, color: C.gold }}>
+                <Icon size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p style={serif} className="text-base leading-tight">{b.title}</p>
+                <p className="text-xs mt-0.5" style={{ color: C.muted }}>{b.sub}</p>
+                <p className="text-[11px] font-semibold mt-2 inline-flex items-center gap-1" style={{ color: C.gold }}>
+                  {b.cta} <ArrowRight size={11} />
+                </p>
+              </div>
+            </Comp>
+          );
+        })}
+      </div>
     </div>
   );
 }

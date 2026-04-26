@@ -7,7 +7,12 @@
     { "source": "/communities/:slug", "destination": "/communities/:slug.html" },
     { "source": "/communities", "destination": "/communities/index.html" },
     { "source": "/buyer-guide", "destination": "/buyer-guide.html" },
-    { "source": "/((?!api|brand|assets|communities|buyer-guide|.*\\..*).*)", "destination": "/index.html" }
+    { "source": "/seller-checklist", "destination": "/seller-checklist.html" },
+    { "source": "/buy", "destination": "/buy.html" },
+    { "source": "/sell", "destination": "/sell.html" },
+    { "source": "/invest", "destination": "/invest.html" },
+    { "source": "/thank-you", "destination": "/thank-you.html" },
+    { "source": "/((?!api|brand|assets|communities|buyer-guide|seller-checklist|buy|sell|invest|thank-you|.*\\..*).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
