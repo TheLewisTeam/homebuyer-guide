@@ -1,6 +1,6 @@
 /* The Lewis Team — service worker
    Strict network-first for HTML so clients never see a stale UI. */
-const CACHE = 'lewisteam-v5';
+const CACHE = 'lewisteam-v6';
 const CORE = [
   '/brand/logo.png',
   '/brand/team-hero.jpg',
