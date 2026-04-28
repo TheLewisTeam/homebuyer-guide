@@ -1927,6 +1927,8 @@ export default function App() {
           wins={wins} setWins={setWins} resetWins={resetWins}
           workshops={workshops} setWorkshops={setWorkshops} resetWorkshops={resetWorkshops}
           team={teamOverrides} setTeam={setTeamOverrides} resetTeam={resetTeam}
+          reviews={reviews} setReviews={setReviews} resetReviews={resetReviews}
+          external={external} setExternal={setExternal} resetExternal={resetExternal}
           getPin={getStoredPin} setPin={setStoredPin} clearPin={clearStoredPin}
           onClose={() => setModal(null)}
         />
@@ -5895,6 +5897,8 @@ function AdminCenter({
   wins, setWins, resetWins,
   workshops, setWorkshops, resetWorkshops,
   team, setTeam, resetTeam,
+  reviews, setReviews, resetReviews,
+  external, setExternal, resetExternal,
   getPin, setPin, clearPin,
 }) {
   const [section, setSection] = useState('crm');
@@ -5909,6 +5913,8 @@ function AdminCenter({
     { id: 'content', label: 'Content' },
     { id: 'sponsors', label: 'Sponsors' },
     { id: 'team', label: 'Team' },
+    { id: 'reviews', label: 'Reviews' },
+    { id: 'links', label: 'Links' },
     { id: 'data', label: 'Data' },
   ];
 
@@ -6005,6 +6011,12 @@ function AdminCenter({
           )}
           {section === 'team' && (
             <TeamEditor team={team} onChange={setTeam} onReset={resetTeam} />
+          )}
+          {section === 'reviews' && (
+            <ReviewsEditor items={reviews} onChange={setReviews} onReset={resetReviews} />
+          )}
+          {section === 'links' && (
+            <ExternalLinksEditor config={external} onChange={setExternal} onReset={resetExternal} />
           )}
           {section === 'data' && (
             <DataPanel
@@ -7891,6 +7903,163 @@ function WorkshopsEditor({ items, onChange, onReset }) {
           <AdminInput label="RSVP label" value={w.rsvp} onChange={v => update(i, 'rsvp', v)} />
         </div>
       ))}
+    </div>
+  );
+}
+
+function ReviewsEditor({ items, onChange, onReset }) {
+  const list = items || [];
+  const update = (i, key, value) => {
+    const next = [...list];
+    next[i] = { ...next[i], [key]: value };
+    onChange(next);
+  };
+  const add = () => onChange([...list, {
+    id: `r_${Date.now()}`,
+    author: '',
+    text: '',
+    stars: 5,
+    date: '',
+    source: 'google',
+  }]);
+  const del = (i) => {
+    if (!confirm('Delete this review?')) return;
+    onChange(list.filter((_, idx) => idx !== i));
+  };
+  const move = (i, dir) => {
+    const j = i + dir;
+    if (j < 0 || j >= list.length) return;
+    const next = [...list];
+    [next[i], next[j]] = [next[j], next[i]];
+    onChange(next);
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <p style={{ ...serif, color: C.ink }} className="text-xl leading-tight">Client Reviews</p>
+        <div className="flex gap-2">
+          <AdminBtn onClick={add} variant="gold">+ New review</AdminBtn>
+          <AdminBtn onClick={onReset} variant="ghost">Reset</AdminBtn>
+        </div>
+      </div>
+      <p className="text-xs mb-4" style={{ color: C.muted }}>
+        Paste real Google reviews here. They show on the Home tab in a swipeable carousel.
+      </p>
+      {list.map((r, i) => (
+        <div key={r.id || i} className="rounded-lg p-3 mb-3"
+             style={{ backgroundColor: C.paper, border: `1px solid ${C.line}` }}>
+          <div className="flex items-start justify-between mb-2">
+            <p className="text-[10px] uppercase tracking-wider" style={{ color: C.gold }}>
+              Review {i + 1}
+            </p>
+            <div className="flex gap-1">
+              <button onClick={() => move(i, -1)} disabled={i === 0}
+                style={{ backgroundColor: C.cream, color: C.ink, border: `1px solid ${C.line}`, opacity: i === 0 ? 0.3 : 1 }}
+                className="w-7 h-7 rounded text-xs">↑</button>
+              <button onClick={() => move(i, 1)} disabled={i === list.length - 1}
+                style={{ backgroundColor: C.cream, color: C.ink, border: `1px solid ${C.line}`, opacity: i === list.length - 1 ? 0.3 : 1 }}
+                className="w-7 h-7 rounded text-xs">↓</button>
+              <AdminBtn onClick={() => del(i)} variant="danger">Del</AdminBtn>
+            </div>
+          </div>
+          <AdminInput label="Author" value={r.author}
+                      onChange={v => update(i, 'author', v)}
+                      placeholder="e.g. Sarah K." />
+          <AdminTextArea label="Review text" rows={3} value={r.text}
+                         onChange={v => update(i, 'text', v)}
+                         placeholder="Lancey and Stacy made our first home purchase so smooth..." />
+          <AdminInput label="Date" value={r.date}
+                      onChange={v => update(i, 'date', v)}
+                      placeholder="e.g. 2026-04 or April 2026" />
+          <AdminSelect label="Stars" value={String(r.stars || 5)}
+                       onChange={v => update(i, 'stars', Number(v))}
+                       options={[
+                         { value: '5', label: '5 stars ★★★★★' },
+                         { value: '4', label: '4 stars ★★★★☆' },
+                         { value: '3', label: '3 stars ★★★☆☆' },
+                       ]} />
+          <AdminSelect label="Source" value={r.source || 'google'}
+                       onChange={v => update(i, 'source', v)}
+                       options={[
+                         { value: 'google', label: 'Google' },
+                         { value: 'zillow', label: 'Zillow' },
+                         { value: 'facebook', label: 'Facebook' },
+                         { value: 'direct', label: 'Direct (text/email)' },
+                         { value: 'other', label: 'Other' },
+                       ]} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ExternalLinksEditor({ config, onChange, onReset }) {
+  const cfg = config || EXTERNAL_DEFAULTS;
+  const [local, setLocal] = useState(cfg);
+  useEffect(() => { setLocal(cfg); }, [cfg]);
+  const field = (key, value) => setLocal({ ...local, [key]: value });
+  const dirty = JSON.stringify(local) !== JSON.stringify(cfg);
+  const save = () => onChange(local);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <p style={{ ...serif, color: C.ink }} className="text-xl leading-tight">External Links</p>
+        <div className="flex gap-2">
+          <AdminBtn onClick={save} variant="gold">{dirty ? 'Save' : 'Saved'}</AdminBtn>
+          <AdminBtn onClick={onReset} variant="ghost">Reset</AdminBtn>
+        </div>
+      </div>
+
+      <p className="text-xs mb-4" style={{ color: C.muted }}>
+        Edit the URLs the app sends visitors to for reviews, MLS search, and your team intro video.
+      </p>
+
+      <p className="text-[10px] uppercase tracking-[0.2em] mt-4 mb-2" style={{ color: C.gold }}>
+        Google Business Profile
+      </p>
+      <AdminInput label="Google review submission URL"
+                  value={local.googleReviewUrl}
+                  onChange={v => field('googleReviewUrl', v)}
+                  placeholder="https://g.page/r/..."
+                  hint="Search 'Lewis Team Real Estate' on Google → click Write a review → copy the share URL" />
+      <AdminInput label="Google business profile URL"
+                  value={local.googleBusinessUrl}
+                  onChange={v => field('googleBusinessUrl', v)}
+                  placeholder="https://www.google.com/search?q=The+Lewis+Team..." />
+
+      <p className="text-[10px] uppercase tracking-[0.2em] mt-5 mb-2" style={{ color: C.gold }}>
+        Property Search Portal
+      </p>
+      <AdminInput label="Full MLS search URL"
+                  value={local.mlsSearchUrl}
+                  onChange={v => field('mlsSearchUrl', v)}
+                  placeholder="https://www.searchallproperties.com/..."
+                  hint="The portal where buyers can browse the entire MLS feed" />
+
+      <p className="text-[10px] uppercase tracking-[0.2em] mt-5 mb-2" style={{ color: C.gold }}>
+        Team Intro Video (Welcome screen)
+      </p>
+      <AdminInput label="Video URL (YouTube watch/embed or .mp4)"
+                  value={local.videoIntroUrl}
+                  onChange={v => field('videoIntroUrl', v)}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  hint="Leave empty to hide the video card. YouTube watch URLs auto-convert to embed." />
+      <AdminInput label="Video title"
+                  value={local.videoIntroTitle}
+                  onChange={v => field('videoIntroTitle', v)}
+                  placeholder="Meet The Lewis Team" />
+      <AdminInput label="Video subtitle"
+                  value={local.videoIntroSub}
+                  onChange={v => field('videoIntroSub', v)}
+                  placeholder="Lancey & Stacy — Realtor of the Year 2025" />
+
+      {dirty && (
+        <p className="text-xs mt-3" style={{ color: C.gold }}>
+          You have unsaved changes. Tap Save to publish.
+        </p>
+      )}
     </div>
   );
 }
